@@ -1,0 +1,171 @@
+.DEFAULT_GOAL := all
+CC ?= cc
+AR = ar
+MODE ?= release
+XF_ROOT ?= ../XF
+LS_ROOT ?= $(XF_ROOT)/vendor/lambdaScript
+BUILD := build/$(MODE)
+ifeq ($(MODE),release)
+BIN := bin/catc
+else
+BIN := bin/$(MODE)/catc
+endif
+WARN := -std=c11 -Wall -Wextra -Wpedantic
+ifeq ($(MODE),release)
+MODE_FLAGS := -O2
+else ifeq ($(MODE),asan)
+MODE_FLAGS := -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined
+else ifeq ($(MODE),fuzz)
+MODE_FLAGS := -O1 -g -fno-omit-frame-pointer -fsanitize=fuzzer-no-link,address,undefined
+else ifeq ($(MODE),lsan)
+MODE_FLAGS := -O1 -g -fno-omit-frame-pointer -fsanitize=leak
+else ifeq ($(MODE),tsan)
+MODE_FLAGS := -O1 -g -fno-omit-frame-pointer -fsanitize=thread
+else
+$(error Unsupported MODE: $(MODE))
+endif
+XF_NAMES := ast interp lexer parser symTable value vm gc mt core simd
+CORE_NAMES := helpers math str os generics regex format ds edit process img lambda
+LS_NAMES := ast err interp lexer ls parser symTable value
+XF_SRCS := $(addprefix $(XF_ROOT)/src/,$(addsuffix .c,$(XF_NAMES))) \
+ $(addprefix $(XF_ROOT)/src/core/,$(addsuffix .c,$(CORE_NAMES))) \
+ $(XF_ROOT)/lib/driver.c $(XF_ROOT)/lib/api.c
+XF_OBJS := $(addprefix $(BUILD)/xf/,$(XF_SRCS:$(XF_ROOT)/%.c=%.o))
+LS_OBJS := $(addprefix $(BUILD)/ls/,$(addsuffix .o,$(LS_NAMES)))
+CPPFLAGS += -D_FILE_OFFSET_BITS=64 -I$(XF_ROOT)/lib -I$(BUILD) -Isrc
+CPPFLAGS += -I$(XF_ROOT)/public -I$(LS_ROOT)/include
+CFLAGS += $(WARN) $(MODE_FLAGS) -MMD -MP
+LDLIBS += -lm -lpthread
+ZLIB_LIBS ?= -lz
+
+$(BUILD)/xf/%.o: $(XF_ROOT)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(BUILD)/ls/%.o: $(LS_ROOT)/src/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(BUILD)/smoke.o: tests/xf_smoke.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(BUILD)/libxf.a: $(XF_OBJS)
+	$(AR) rcs $@ $^
+$(BUILD)/libls.a: $(LS_OBJS)
+	$(AR) rcs $@ $^
+$(BUILD)/xf-smoke: $(BUILD)/smoke.o $(BUILD)/libxf.a $(BUILD)/libls.a
+	$(CC) $(MODE_FLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+all: $(BUILD)/xf-smoke
+test: all transform-test integration-test
+	UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ./$(BUILD)/xf-smoke > $(BUILD)/smoke.out
+	cmp tests/xf_smoke.expected $(BUILD)/smoke.out
+	@cat $(BUILD)/smoke.out
+asan tsan lsan:
+	$(MAKE) MODE=$@ test
+clean:
+	rm -rf build bin/catc bin/asan bin/tsan bin/lsan
+-include $(XF_OBJS:.o=.d) $(LS_OBJS:.o=.d) $(BUILD)/smoke.d
+.PHONY: all test asan tsan lsan clean
+
+$(BUILD)/table_source.h: lib/Table.xf tools/embed.py
+	@mkdir -p $(dir $@)
+	python3 tools/embed.py $< $@
+$(BUILD)/cat/%.o: src/%.c $(BUILD)/table_source.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(BUILD)/transform-test.o: tests/transform_test.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(BUILD)/transform-test: $(BUILD)/transform-test.o $(BUILD)/cat/transform.o $(BUILD)/libxf.a $(BUILD)/libls.a
+	$(CC) $(MODE_FLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+transform-test: $(BUILD)/transform-test
+	UBSAN_OPTIONS=halt_on_error=1 ./$(BUILD)/transform-test
+-include $(wildcard $(BUILD)/cat/*.d) $(BUILD)/transform-test.d
+
+$(BUILD)/catc: $(BUILD)/cat/catc.o $(BUILD)/cat/transform.o $(BUILD)/cat/sha256.o $(BUILD)/cat/gzip.o $(BUILD)/cat/io.o $(BUILD)/libxf.a $(BUILD)/libls.a
+	$(CC) $(MODE_FLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS) $(ZLIB_LIBS)
+$(BIN): $(BUILD)/catc
+	@mkdir -p $(dir $@)
+	cp $< $@
+	chmod +x $@
+all: $(BIN)
+
+integration-test: $(BUILD)/catc
+	python3 tests/integration.py $(BUILD)/catc
+.PHONY: transform-test integration-test
+
+$(BUILD)/cat/catc-testing.o: src/catc.c $(BUILD)/table_source.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DCAT_TESTING -c $< -o $@
+$(BUILD)/cat/io-testing.o: src/io.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DCAT_TESTING -c $< -o $@
+$(BUILD)/catc-testing: $(BUILD)/cat/catc-testing.o $(BUILD)/cat/io-testing.o $(BUILD)/cat/transform.o $(BUILD)/cat/sha256.o $(BUILD)/cat/gzip.o $(BUILD)/libxf.a $(BUILD)/libls.a
+	$(CC) $(MODE_FLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS) $(ZLIB_LIBS)
+failure-test: $(BUILD)/catc-testing $(BUILD)/catc
+	python3 tests/failures.py $(BUILD)/catc-testing $(BUILD)/catc
+compatibility-test: $(BUILD)/catc
+	python3 tests/compatibility.py $(BUILD)/catc
+test: failure-test compatibility-test
+.PHONY: failure-test compatibility-test
+
+FUZZ_SECONDS ?= 60
+FUZZ_CC ?= $(if $(wildcard /opt/homebrew/opt/llvm/bin/clang),/opt/homebrew/opt/llvm/bin/clang,clang)
+FUZZ_BUILD ?= build/fuzz-llvm
+$(BUILD)/cat/catc-fuzz.o: src/catc.c $(BUILD)/table_source.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DCAT_FUZZING -c $< -o $@
+$(BUILD)/archive-fuzz.o: tests/archive_fuzz.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(BUILD)/tree-fuzz.o: tests/tree_fuzz.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+$(BUILD)/archive-fuzz: $(BUILD)/archive-fuzz.o $(BUILD)/cat/catc-fuzz.o $(BUILD)/cat/io.o $(BUILD)/cat/transform.o $(BUILD)/cat/sha256.o $(BUILD)/cat/gzip.o $(BUILD)/libxf.a $(BUILD)/libls.a
+	$(CC) $(MODE_FLAGS) -fsanitize=fuzzer -o $@ $^ $(LDLIBS) $(ZLIB_LIBS)
+$(BUILD)/tree-fuzz: $(BUILD)/tree-fuzz.o $(BUILD)/cat/transform.o $(BUILD)/libxf.a $(BUILD)/libls.a
+	$(CC) $(MODE_FLAGS) -fsanitize=fuzzer -o $@ $^ $(LDLIBS)
+fuzz-build: $(BUILD)/archive-fuzz $(BUILD)/tree-fuzz
+fuzz:
+	$(MAKE) MODE=fuzz CC=$(FUZZ_CC) BUILD=$(FUZZ_BUILD) fuzz-build
+	python3 tools/seed_fuzz.py $(FUZZ_BUILD)
+	python3 tools/fuzz.py $(FUZZ_BUILD)/archive-fuzz $(FUZZ_BUILD)/archive-corpus --seconds $(FUZZ_SECONDS)
+	python3 tools/fuzz.py $(FUZZ_BUILD)/tree-fuzz $(FUZZ_BUILD)/tree-corpus --seconds $(FUZZ_SECONDS)
+.PHONY: fuzz fuzz-build
+streaming-test: $(BUILD)/catc
+	python3 tests/streaming.py $(BUILD)/catc
+.PHONY: streaming-test
+PREFIX ?= /usr/local
+DESTDIR ?=
+install: $(BIN)
+	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/doc/catc
+	install -m 755 $(BIN) $(DESTDIR)$(PREFIX)/bin/catc
+	install -m 644 LICENSE THIRD_PARTY.md README.md docs/FORMAT-v0.1.md $(DESTDIR)$(PREFIX)/share/doc/catc/
+	install -d $(DESTDIR)$(PREFIX)/share/doc/catc/licenses
+	install -m 644 $(filter-out licenses/._%,$(wildcard licenses/*.txt)) $(DESTDIR)$(PREFIX)/share/doc/catc/licenses/
+package: $(BIN)
+	python3 tools/package.py binary --binary $(BIN) --output releases/catc-development-binary.tar.gz
+source-package:
+	python3 tools/package.py source --output releases/catc-development-source.tar.gz
+.PHONY: install package source-package
+release-check:
+	python3 tools/release_check.py
+.PHONY: release-check
+$(BUILD)/sha256-test: tests/sha256_test.c $(BUILD)/cat/sha256.o
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(MODE_FLAGS) -o $@ $^ $(LDFLAGS)
+sha256-test: $(BUILD)/sha256-test
+	./$(BUILD)/sha256-test
+test: sha256-test
+.PHONY: sha256-test
+packaging-test: $(BUILD)/catc
+	python3 tests/packaging.py $(BUILD)/catc
+.PHONY: packaging-test
+$(BUILD)/memory-test: tests/memory_test.c $(BUILD)/cat/catc-fuzz.o $(BUILD)/cat/io.o $(BUILD)/cat/transform.o $(BUILD)/cat/sha256.o $(BUILD)/cat/gzip.o $(BUILD)/libxf.a $(BUILD)/libls.a
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(MODE_FLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(ZLIB_LIBS)
+leak-test: $(BUILD)/memory-test $(BUILD)/transform-test $(BUILD)/catc $(BUILD)/catc-testing
+	./$(BUILD)/transform-test
+	./$(BUILD)/memory-test tests/golden/v01.cat tests/golden/v01.cat.gz
+	python3 tests/leak_cli.py $(BUILD)/catc $(BUILD)/catc-testing
+.PHONY: leak-test
+
+leak-cli-test: $(BUILD)/catc $(BUILD)/catc-testing
+	python3 tests/leak_cli.py $(BUILD)/catc $(BUILD)/catc-testing
+.PHONY: leak-cli-test

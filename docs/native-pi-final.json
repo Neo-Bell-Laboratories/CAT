@@ -1,0 +1,31 @@
+{
+  "platform": "Linux-6.12.75+rpt-rpi-v8-aarch64-with-glibc2.36",
+  "machine": "aarch64",
+  "compiler": "cc (Debian 12.2.0-14+deb12u1) 12.2.0",
+  "modes": {
+    "release": {
+      "status": "passed",
+      "exit_code": 0,
+      "seconds": 44.329,
+      "target": "test",
+      "log": "native-release.log"
+    },
+    "asan": {
+      "status": "passed",
+      "exit_code": 0,
+      "seconds": 117.107,
+      "target": "test",
+      "log": "native-asan.log"
+    },
+    "tsan": {
+      "status": "passed",
+      "exit_code": 0,
+      "seconds": 315.535,
+      "target": "test",
+      "log": "native-tsan.log"
+    }
+  },
+  "policy": "single-job by default; dedicated persistent LSan checks; native ASan uses detect_leaks=0 because LSan is separate",
+  "model": "Raspberry Pi Zero 2 W Rev 1.0",
+  "code_sha256": "e088c0bc342f2cdf8b1eb2c66becc03dc45be13aeaf35e7a940f48c236cefa10"
+}

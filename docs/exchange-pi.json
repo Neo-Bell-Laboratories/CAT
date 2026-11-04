@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "mode": "generate",
+  "platform": "Linux-aarch64",
+  "version": "catc 0.2.0-dev format=0.1 xf=1.0.0 zlib=1.2.13",
+  "raw_archive_byte_identical_to_v01": true,
+  "restored_bytes_modes_and_sha256_match": true
+}

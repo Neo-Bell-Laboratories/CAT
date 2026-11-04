@@ -1,0 +1,61 @@
+{
+  "input_bytes": 18874368,
+  "round_trip": "cmp and SHA-256 match",
+  "rss_limit_bytes": 67108864,
+  "runs": [
+    {
+      "gzip": false,
+      "encode": {
+        "entries": "1",
+        "input_bytes": "18874368",
+        "archive_bytes": "18915977",
+        "tree_blocks": "0",
+        "raw_blocks": "4608",
+        "seconds": "347.377078",
+        "ratio": "1.002205",
+        "gzip": "off",
+        "cat_bytes": "18915977",
+        "peak_rss_bytes": "15540224"
+      },
+      "decode": {
+        "entries": "1",
+        "input_bytes": "18874368",
+        "archive_bytes": "18915977",
+        "tree_blocks": "0",
+        "raw_blocks": "4608",
+        "seconds": "9.019630",
+        "ratio": "1.002205",
+        "gzip": "off",
+        "cat_bytes": "18915977",
+        "peak_rss_bytes": "15540224"
+      }
+    },
+    {
+      "gzip": true,
+      "encode": {
+        "entries": "1",
+        "input_bytes": "18874368",
+        "archive_bytes": "18921746",
+        "tree_blocks": "0",
+        "raw_blocks": "4608",
+        "seconds": "390.626786",
+        "ratio": "1.002510",
+        "gzip": "on",
+        "cat_bytes": "18915977",
+        "peak_rss_bytes": "15540224"
+      },
+      "decode": {
+        "entries": "1",
+        "input_bytes": "18874368",
+        "archive_bytes": "18921746",
+        "tree_blocks": "0",
+        "raw_blocks": "4608",
+        "seconds": "6.243643",
+        "ratio": "1.002510",
+        "gzip": "on",
+        "cat_bytes": "18915977",
+        "peak_rss_bytes": "15540224"
+      }
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "date": "2026-11-03",
+  "tool_version": "0.2.0-dev",
+  "format_version": "0.1",
+  "macos_release": {
+    "status": "passed",
+    "evidence": "local release suite",
+    "detail": "172 CLI checks, 34 failure checks, SHA vectors, transforms, saved golden archives"
+  },
+  "macos_asan_ubsan": {
+    "status": "passed",
+    "evidence": "local instrumented full suite",
+    "detail": ""
+  },
+  "macos_tsan": {
+    "status": "passed",
+    "evidence": "local separate full suite",
+    "detail": "Serial host; no worker-pool claim"
+  },
+  "linux_release": {
+    "status": "passed",
+    "evidence": "docs/native-pi-final.json",
+    "detail": "Pi Zero 2 W, aarch64, GCC 12; full suite; final FIFO/open-race regression included (172 CLI checks, 34 failure checks)"
+  },
+  "linux_lsan": {
+    "status": "passed",
+    "evidence": "docs/native-pi.json; build/leak-cli-final.log",
+    "detail": "Dedicated persistent suite: 532 valid/malformed parser cycles and transform tests, plus final seven-path CLI leak recheck including FIFO rejection; no leaks reported. Full per-process LSan suite was superseded because of Pi scan startup cost."
+  },
+  "linux_asan_ubsan": {
+    "status": "passed",
+    "evidence": "docs/native-pi-final.json",
+    "detail": "Full suite; detect_leaks=0 because dedicated LSan validation is separate; final FIFO/open-race regression included (172 CLI checks, 34 failure checks)"
+  },
+  "linux_tsan": {
+    "status": "passed",
+    "evidence": "docs/native-pi-final.json",
+    "detail": "Full separate suite; serial host; final FIFO/open-race regression included (172 CLI checks, 34 failure checks)"
+  },
+  "cross_platform_exchange": {
+    "status": "passed",
+    "evidence": "docs/exchange-mac-to-pi.json; docs/exchange-pi-to-mac.json",
+    "detail": "Both plain and gzip; exact file bytes, modes and SHA-256; raw archive byte-identical across platforms"
+  },
+  "streaming": {
+    "status": "passed",
+    "evidence": "docs/streaming-macos.json; docs/streaming-pi.json",
+    "detail": "Mac 24 MiB plain/gzip and Pi 18 MiB plain/gzip round trips; cmp and SHA-256 match. About 9 MiB encode RSS on Mac; about 15 MiB reported RSS on Pi. Pi encoding roughly 6 minutes; throughput remains a practical limitation."
+  },
+  "failure_injection": {
+    "status": "passed",
+    "evidence": "tests/failures.py",
+    "detail": "Disk-full, sync/permission failures, source mutation, cancellation before/after commit, no-overwrite, scratch budgets and cleanup"
+  },
+  "archive_fuzz": {
+    "status": "passed",
+    "evidence": "docs/fuzz-macos.json",
+    "detail": "134994 cases over 121 seconds, ASan/UBSan, outer checksum repaired"
+  },
+  "tree_fuzz": {
+    "status": "passed",
+    "evidence": "docs/fuzz-macos.json",
+    "detail": "2096687 cases over 121 seconds, ASan/UBSan"
+  },
+  "packaging": {
+    "status": "passed",
+    "evidence": "tests/packaging.py",
+    "detail": "Deterministic source bundle, per-file SHA-256, native binary manifest, standalone extracted source build; isolated installation checked"
+  },
+  "licensing": {
+    "status": "passed",
+    "evidence": "LICENSE; THIRD_PARTY.md; licenses/",
+    "detail": "Owner confirmed CAT/XF/LambdaScript first-party ownership and MIT licensing; third-party terms retained"
+  },
+  "ci": {
+    "status": "deferred_by_user",
+    "evidence": "../.github/workflows/cat.yml",
+    "detail": "Workflow prepared and YAML syntax checked; user requested local-only; GitHub Actions not executed"
+  },
+  "release_state": "development candidate validated locally and on Pi; no public release/tag/upload performed; CI execution intentionally deferred",
+  "known_limits": [
+    "4096 entries, depth 64, 2 MiB manifest; configured byte/disk budgets",
+    "Regular files/directories and 0777 modes; no timestamps/ownership/ACL/xattr/link preservation",
+    "SIGKILL/power loss/unsupported directory fsync cannot guarantee crash-durable publication",
+    "TSan coverage is serial; workers remain deferred",
+    "Apple Clang 21 lacks LSan/libFuzzer runtimes on this target; Homebrew LLVM 23 used for fuzzing; Pi Clang14 crashed compiling XF, GCC12 passed",
+    "Pi encode throughput on the 18 MiB synthetic incompressible input is about 50 KiB/s; large/interactive workloads need performance work."
+  ],
+  "native_code_sha256": "e088c0bc342f2cdf8b1eb2c66becc03dc45be13aeaf35e7a940f48c236cefa10",
+  "build_config_note": "Final native regression uses the same runtime sources and Makefile as the local candidate, with explicit CC=cc. Dedicated LSan persistent coverage predates only the archive file-type/open-race fix; final CLI leak paths were rerun after that fix.",
+  "current_code_sha256": "e088c0bc342f2cdf8b1eb2c66becc03dc45be13aeaf35e7a940f48c236cefa10"
+}

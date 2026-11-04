@@ -1,0 +1,42 @@
+# CAT Table v0.1. Bytes are numbers 0..255; positions retain original order.
+# C supplies cat_input() and retains the value passed to cat_capture().
+map fn cat_table_from_bytes(arr bytes) {
+    arr rows = []
+    num i = 0
+    while (i < bytes.len) {
+        push(rows, {"offset": i, "byte": bytes[i]})
+        i = i + 1
+    }
+    return {"columns": ["offset", "byte"], "rows": rows, "length": bytes.len}
+}
+
+map fn cat_table_to_tree(map table) {
+    # Reverse index: byte value -> ordered original positions.
+    map buckets = core.ds.agg(table["rows"], "byte", "offset")
+    return {"length": table["length"], "buckets": buckets}
+}
+
+map fn cat_tree_to_table(map tree) {
+    arr rows = []
+    num i = 0
+    while (i < tree["length"]) {
+        push(rows, {"offset": i, "byte": 0})
+        i = i + 1
+    }
+    map buckets = tree["buckets"]
+    for (key in buckets) {
+        num value = key + 0
+        for (offset in buckets[key]) {
+            rows[offset]["byte"] = value
+        }
+    }
+    return {"columns": ["offset", "byte"], "rows": rows, "length": tree["length"]}
+}
+
+arr fn cat_table_to_bytes(map table) {
+    arr bytes = []
+    for (row in table["rows"]) {
+        push(bytes, row["byte"])
+    }
+    return bytes
+}

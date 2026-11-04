@@ -1,0 +1,9 @@
+/build/
+
+/bin/
+
+._*
+.DS_Store
+__pycache__/
+/releases/*.tar.gz
+/releases/*.sha256

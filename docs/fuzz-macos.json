@@ -1,0 +1,32 @@
+{
+  "archive": {
+    "status": "passed",
+    "seconds": 121,
+    "stats": {
+      "number_of_executed_units": 134994,
+      "average_exec_per_sec": 1115,
+      "new_units_added": 11,
+      "slowest_unit_time_sec": 0,
+      "peak_rss_mb": 111
+    },
+    "command": "libFuzzer + ASan/UBSan; 32 MiB quarantine; 512 MiB RSS cap",
+    "log": "build/fuzz-llvm/fuzz-artifacts/archive-fuzz-fcguu_tb/run.log"
+  },
+  "tree": {
+    "status": "passed",
+    "seconds": 121,
+    "stats": {
+      "number_of_executed_units": 2096687,
+      "average_exec_per_sec": 17327,
+      "new_units_added": 18,
+      "slowest_unit_time_sec": 0,
+      "peak_rss_mb": 145
+    },
+    "command": "libFuzzer + ASan/UBSan; 32 MiB quarantine; 512 MiB RSS cap",
+    "log": "build/fuzz-llvm/fuzz-artifacts/tree-fuzz-zmh52r6c/run.log"
+  },
+  "earlier_rss_event": {
+    "status": "investigated",
+    "detail": "Tree campaign hit the initial 512 MiB RSS cap with default ASan quarantine. Saved valid input survived 1000 replays with reduced quarantine; final campaign peaked at 145 MiB. Native LSan is a separate required check."
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "host": "macOS arm64; release build; small synthetic corpus; timings are single-run observations",
+  "baseline": "deterministic USTAR file tree compressed with Python gzip level 9; includes archive metadata",
+  "results": [
+    {
+      "dataset": "zero-runs",
+      "input_bytes": 65536,
+      "cat_bytes": 409,
+      "ratio": 0.006241,
+      "tar_gzip_bytes": 154,
+      "tree_blocks": 16,
+      "raw_blocks": 0,
+      "encode_seconds": 0.074875,
+      "decode_seconds": 0.049646,
+      "encode_bytes_per_second": 875272,
+      "decode_bytes_per_second": 1320066,
+      "encode_peak_rss_bytes": 8241152,
+      "decode_peak_rss_bytes": 7864320
+    },
+    {
+      "dataset": "repetitive-text",
+      "input_bytes": 69632,
+      "cat_bytes": 69928,
+      "ratio": 1.004251,
+      "tar_gzip_bytes": 338,
+      "tree_blocks": 0,
+      "raw_blocks": 17,
+      "encode_seconds": 0.033921,
+      "decode_seconds": 0.000535,
+      "encode_bytes_per_second": 2052770,
+      "decode_bytes_per_second": 130153271,
+      "encode_peak_rss_bytes": 8536064,
+      "decode_peak_rss_bytes": 2211840
+    },
+    {
+      "dataset": "random-bytes",
+      "input_bytes": 65536,
+      "cat_bytes": 65820,
+      "ratio": 1.004333,
+      "tar_gzip_bytes": 65712,
+      "tree_blocks": 0,
+      "raw_blocks": 16,
+      "encode_seconds": 0.033694,
+      "decode_seconds": 0.000503,
+      "encode_bytes_per_second": 1945035,
+      "decode_bytes_per_second": 130290258,
+      "encode_peak_rss_bytes": 8683520,
+      "decode_peak_rss_bytes": 2195456
+    },
+    {
+      "dataset": "already-compressed",
+      "input_bytes": 65574,
+      "cat_bytes": 65873,
+      "ratio": 1.00456,
+      "tar_gzip_bytes": 65760,
+      "tree_blocks": 0,
+      "raw_blocks": 17,
+      "encode_seconds": 0.034203,
+      "decode_seconds": 0.000502,
+      "encode_bytes_per_second": 1917200,
+      "decode_bytes_per_second": 130625498,
+      "encode_peak_rss_bytes": 8650752,
+      "decode_peak_rss_bytes": 2211840
+    },
+    {
+      "dataset": "duplicate-files",
+      "input_bytes": 16384,
+      "cat_bytes": 16725,
+      "ratio": 1.020813,
+      "tar_gzip_bytes": 8479,
+      "tree_blocks": 0,
+      "raw_blocks": 4,
+      "encode_seconds": 0.008907,
+      "decode_seconds": 0.00042,
+      "encode_bytes_per_second": 1839452,
+      "decode_bytes_per_second": 39009524,
+      "encode_peak_rss_bytes": 8241152,
+      "decode_peak_rss_bytes": 2097152
+    }
+  ]
+}

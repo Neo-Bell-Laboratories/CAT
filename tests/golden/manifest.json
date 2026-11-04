@@ -1,0 +1,10 @@
+{
+  "path": "fixture.bin",
+  "mode": 416,
+  "size": 8206,
+  "sha256": "75d91181490baa1e6cc6ba667bab9c92f4f6c75d5aabed420213e4fd2f806ab5",
+  "archives": {
+    "v01.cat": "15b5bc90fc0cc9cccc8e9be7c89fa21c01301f78812c33bd6583cd42f93483ec",
+    "v01.cat.gz": "33dde53d64f1136fbb7a55ae2b0aa24604bde75b89b67e666aa1c66d3ac47e16"
+  }
+}
