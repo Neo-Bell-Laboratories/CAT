@@ -41,7 +41,7 @@ def archive_folder_name(path):
         name = name[:-4]
     else:
         name = Path(name).stem
-    return name or 'CAT Archive'
+    return name or 'CATS Archive'
 
 
 def available_folder_name(parent, preferred):
@@ -75,7 +75,7 @@ class CatWindow:
             self.root.after(150, self.inspect)
 
     def _style(self):
-        self.root.title('CAT Archive')
+        self.root.title('CATS Archive')
         self.root.geometry('900x650')
         self.root.minsize(700, 500)
         palette = {
@@ -129,8 +129,8 @@ class CatWindow:
         outer = ttk.Frame(self.root, padding=24)
         outer.pack(fill='both', expand=True)
 
-        ttk.Label(outer, text='Unarchive CAT', style='Header.TLabel').pack(anchor='w')
-        ttk.Label(outer, text='Inspect and safely extract a CAT archive.',
+        ttk.Label(outer, text='Unarchive CATS', style='Header.TLabel').pack(anchor='w')
+        ttk.Label(outer, text='Inspect and safely extract a CATS archive.',
                   style='Subheader.TLabel').pack(anchor='w', pady=(4, 20))
 
         ttk.Label(outer, text='Archive').pack(anchor='w')
@@ -282,7 +282,7 @@ class CatWindow:
                 self.progress.stop()
                 if error:
                     self.status_var.set('Archive validation failed.' if action == 'inspect' else 'Extraction failed.')
-                    messagebox.showerror('CAT Archive', error, parent=self.root)
+                    messagebox.showerror('CATS Archive', error, parent=self.root)
                     continue
                 if action == 'inspect':
                     self.info = result
@@ -296,7 +296,7 @@ class CatWindow:
                     self.extract_button.configure(state='normal')
                 else:
                     self.status_var.set('Extracted to %s' % result.path)
-                    messagebox.showinfo('CAT Archive', 'Archive extracted successfully.', parent=self.root)
+                    messagebox.showinfo('CATS Archive', 'Archive extracted successfully.', parent=self.root)
         except queue.Empty:
             pass
         self.root.after(100, self._poll)
@@ -306,7 +306,7 @@ def main():
     try:
         root = tk.Tk()
     except tk.TclError as error:
-        sys.stderr.write('CAT GUI requires a graphical desktop: %s\n' % error)
+        sys.stderr.write('CATS GUI requires a graphical desktop: %s\n' % error)
         return 1
     arguments = [arg for arg in sys.argv[1:] if not arg.startswith('-psn_')]
     initial_archive = arguments[0] if arguments else None

@@ -10,7 +10,7 @@ import tarfile
 import time
 
 parser=argparse.ArgumentParser()
-parser.add_argument('target',help='user@host (IPv6 with optional %interface is supported)')
+parser.add_argument('target',help='user@host (IPv6 with optional %%interface is supported)')
 parser.add_argument('--host-key-alias')
 parser.add_argument('--ipv4',action='store_true',help='avoid link-local IPv6 routing issues')
 parser.add_argument('--modes',default='release,asan,lsan,tsan')

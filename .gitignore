@@ -7,3 +7,4 @@
 __pycache__/
 /releases/*.tar.gz
 /releases/*.sha256
+releases/*.zip

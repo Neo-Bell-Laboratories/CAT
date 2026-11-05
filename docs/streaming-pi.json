@@ -1,60 +1,61 @@
 {
-  "input_bytes": 18874368,
+  "input_bytes": 25165824,
   "round_trip": "cmp and SHA-256 match",
   "rss_limit_bytes": 67108864,
+  "code_sha256": "ce3a25519c897d13f7b621a40b125677b7b18b717e8417e1f9e7d632bce259c4",
   "runs": [
     {
       "gzip": false,
       "encode": {
         "entries": "1",
-        "input_bytes": "18874368",
-        "archive_bytes": "18915977",
+        "input_bytes": "25165824",
+        "archive_bytes": "25193609",
         "tree_blocks": "0",
-        "raw_blocks": "4608",
-        "seconds": "347.377078",
-        "ratio": "1.002205",
+        "raw_blocks": "3072",
+        "seconds": "8.078077",
+        "ratio": "1.001104",
         "gzip": "off",
-        "cat_bytes": "18915977",
-        "peak_rss_bytes": "15540224"
+        "cat_bytes": "25193609",
+        "peak_rss_bytes": "15708160"
       },
       "decode": {
         "entries": "1",
-        "input_bytes": "18874368",
-        "archive_bytes": "18915977",
+        "input_bytes": "25165824",
+        "archive_bytes": "25193609",
         "tree_blocks": "0",
-        "raw_blocks": "4608",
-        "seconds": "9.019630",
-        "ratio": "1.002205",
+        "raw_blocks": "3072",
+        "seconds": "7.690509",
+        "ratio": "1.001104",
         "gzip": "off",
-        "cat_bytes": "18915977",
-        "peak_rss_bytes": "15540224"
+        "cat_bytes": "25193609",
+        "peak_rss_bytes": "15708160"
       }
     },
     {
       "gzip": true,
       "encode": {
         "entries": "1",
-        "input_bytes": "18874368",
-        "archive_bytes": "18921746",
+        "input_bytes": "25165824",
+        "archive_bytes": "25201307",
         "tree_blocks": "0",
-        "raw_blocks": "4608",
-        "seconds": "390.626786",
-        "ratio": "1.002510",
+        "raw_blocks": "3072",
+        "seconds": "13.065788",
+        "ratio": "1.001410",
         "gzip": "on",
-        "cat_bytes": "18915977",
-        "peak_rss_bytes": "15540224"
+        "cat_bytes": "25193609",
+        "peak_rss_bytes": "15708160"
       },
       "decode": {
         "entries": "1",
-        "input_bytes": "18874368",
-        "archive_bytes": "18921746",
+        "input_bytes": "25165824",
+        "archive_bytes": "25201307",
         "tree_blocks": "0",
-        "raw_blocks": "4608",
-        "seconds": "6.243643",
-        "ratio": "1.002510",
+        "raw_blocks": "3072",
+        "seconds": "7.540720",
+        "ratio": "1.001410",
         "gzip": "on",
-        "cat_bytes": "18915977",
-        "peak_rss_bytes": "15540224"
+        "cat_bytes": "25193609",
+        "peak_rss_bytes": "15708160"
       }
     }
   ]

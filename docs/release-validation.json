@@ -1,71 +1,91 @@
 {
-  "date": "2026-11-03",
-  "tool_version": "0.2.0-dev",
-  "format_version": "0.1",
+  "date": "2026-11-05",
+  "tool_version": "0.4.0-dev",
+  "format_version": "0.7",
   "macos_release": {
     "status": "passed",
-    "evidence": "local release suite",
-    "detail": "172 CLI checks, 34 failure checks, SHA vectors, transforms, saved golden archives"
+    "evidence": "local full current-source release suite; docs/streaming-macos.json",
+    "detail": "182 CLI checks, 34 failure checks, seven GUI archive checks, SHA vectors, transforms, compatibility, deterministic packaging and 24 MiB streaming."
   },
   "macos_asan_ubsan": {
     "status": "passed",
-    "evidence": "local instrumented full suite",
-    "detail": ""
+    "evidence": "local full current-source instrumented suite",
+    "detail": "Full current-source ASan/UBSan suite passed, including all 182 CLI checks and the v0.5 compression placeholder parser cases."
+  },
+  "macos_lsan": {
+    "status": "passed",
+    "evidence": "local Homebrew LLVM full leak-test",
+    "detail": "Current-source full LSan suite passed: transform tests, 532 persistent valid/malformed archive cycles, CLI leak paths, and 182 CLI checks."
   },
   "macos_tsan": {
     "status": "passed",
-    "evidence": "local separate full suite",
-    "detail": "Serial host; no worker-pool claim"
+    "evidence": "local Homebrew LLVM full TSan suite",
+    "detail": "Full current-source TSan suite passed with 182 CLI checks; CAT currently has no worker pool."
   },
   "linux_release": {
     "status": "passed",
-    "evidence": "docs/native-pi-final.json",
-    "detail": "Pi Zero 2 W, aarch64, GCC 12; full suite; final FIFO/open-race regression included (172 CLI checks, 34 failure checks)"
+    "evidence": "Pi current-source build log: /tmp/cat-native-validation/CAT/build/release-v05-placeholder.log; tests/gui_smoke.py via xvfb-run",
+    "detail": "Current-source Pi Zero 2 W: 182 CLI checks, 34 failure checks, seven GUI archive checks, static XF smoke, packaging, 24 MiB streaming with exact cmp/SHA and RSS below 16 MiB, plus Tk GUI inspect/extract under Xvfb."
   },
   "linux_lsan": {
     "status": "passed",
-    "evidence": "docs/native-pi.json; build/leak-cli-final.log",
-    "detail": "Dedicated persistent suite: 532 valid/malformed parser cycles and transform tests, plus final seven-path CLI leak recheck including FIFO rejection; no leaks reported. Full per-process LSan suite was superseded because of Pi scan startup cost."
+    "evidence": "Current-source Pi: make MODE=lsan leak-test leak-cli-test; focused -c/--compress parser checks",
+    "detail": "Transform test, 532 valid/malformed archive cycles, CLI leak paths, and all four short/long encode/decode compression placeholder forms passed."
   },
   "linux_asan_ubsan": {
     "status": "passed",
-    "evidence": "docs/native-pi-final.json",
-    "detail": "Full suite; detect_leaks=0 because dedicated LSan validation is separate; final FIFO/open-race regression included (172 CLI checks, 34 failure checks)"
+    "evidence": "Current-source Pi full ASan/UBSan log: /tmp/cat-native-validation/CAT/build/asan-full-current.log; focused v0.5 placeholder checks",
+    "detail": "Full Pi ASan/UBSan suite passed with 178 CLI checks, 34 failure checks, seven GUI archive checks, transforms, compatibility, and XF smoke. All four new short/long encode/decode placeholder forms also passed focused ASan/UBSan checks on the current source."
   },
   "linux_tsan": {
     "status": "passed",
-    "evidence": "docs/native-pi-final.json",
-    "detail": "Full separate suite; serial host; final FIFO/open-race regression included (172 CLI checks, 34 failure checks)"
+    "evidence": "Current-source Pi: make MODE=tsan transform-test; focused -c/--compress parser checks",
+    "detail": "Transform round trips including repeated-block sessions and all four short/long encode/decode compression placeholder forms passed without race reports; worker pool remains disabled."
   },
   "cross_platform_exchange": {
     "status": "passed",
     "evidence": "docs/exchange-mac-to-pi.json; docs/exchange-pi-to-mac.json",
-    "detail": "Both plain and gzip; exact file bytes, modes and SHA-256; raw archive byte-identical across platforms"
+    "detail": "Current v0.7 plain and gzip archives exchanged both directions; each restored exact bytes, modes, and SHA-256. Encoded archives were byte-identical across Mac/zlib 1.2.12 and Pi/zlib 1.2.13."
   },
   "streaming": {
     "status": "passed",
     "evidence": "docs/streaming-macos.json; docs/streaming-pi.json",
-    "detail": "Mac 24 MiB plain/gzip and Pi 18 MiB plain/gzip round trips; cmp and SHA-256 match. About 9 MiB encode RSS on Mac; about 15 MiB reported RSS on Pi. Pi encoding roughly 6 minutes; throughput remains a practical limitation."
+    "detail": "Current-source 24 MiB plain/gzip streaming round trips passed with cmp and SHA-256. Pi peak RSS was about 15.0 MiB; plain encode/decode 8.08/7.69 s and gzip encode/decode 13.07/7.54 s."
   },
   "failure_injection": {
     "status": "passed",
-    "evidence": "tests/failures.py",
-    "detail": "Disk-full, sync/permission failures, source mutation, cancellation before/after commit, no-overwrite, scratch budgets and cleanup"
+    "evidence": "tests/failures.py on Mac and Pi",
+    "detail": "34 checks passed on both hosts: disk-full/sync errors, source mutation, cancellation, cleanup, no-overwrite, atomic policy and budgets."
   },
   "archive_fuzz": {
     "status": "passed",
     "evidence": "docs/fuzz-macos.json",
-    "detail": "134994 cases over 121 seconds, ASan/UBSan, outer checksum repaired"
+    "detail": "Current-source local libFuzzer + ASan/UBSan: 68,084 cases in 61 seconds; 123 MiB peak RSS. See docs/fuzz-macos.json and saved log."
   },
   "tree_fuzz": {
     "status": "passed",
     "evidence": "docs/fuzz-macos.json",
-    "detail": "2096687 cases over 121 seconds, ASan/UBSan"
+    "detail": "Current-source local libFuzzer + ASan/UBSan: 125,260 cases in 61 seconds; 102 MiB peak RSS. See docs/fuzz-macos.json and saved log."
   },
   "packaging": {
     "status": "passed",
-    "evidence": "tests/packaging.py",
-    "detail": "Deterministic source bundle, per-file SHA-256, native binary manifest, standalone extracted source build; isolated installation checked"
+    "evidence": "tests/packaging.py; Linux DESTDIR staging; releases/cat-gui-windows-0.4.0-dev.zip",
+    "detail": "Current-source deterministic source and binary bundles passed; Linux GUI installer staged successfully; standalone Windows GUI ZIP passed reproducibility, path-safety, and per-file SHA-256 checks. Windows runtime remains untested."
+  },
+  "macos_gui_bundle": {
+    "status": "passed",
+    "evidence": "tests/macos_app.py and installed CAT.app bundle",
+    "detail": "Bundle plist, .cat UTI, icons, and native GUI executable validated; Finder visual behavior was not independently captured in this run."
+  },
+  "linux_gui": {
+    "status": "passed",
+    "evidence": "Current-source tests/gui_smoke.py via xvfb-run on Raspberry Pi Zero 2 W",
+    "detail": "Tk GUI opened a CAT archive, inspected its entry, extracted it, and verified exact bytes and mode under Xvfb on the headless Pi."
+  },
+  "windows_gui": {
+    "status": "deferred_by_user",
+    "evidence": "docs/WINDOWS-FINAL-VALIDATION.md; packaging/windows/install-gui.ps1; releases/cat-gui-windows-0.4.0-dev.zip",
+    "detail": "Runtime validation is scheduled for the final hardening pass. The Windows 11 desktop is available in TigerVNC, but CUA keyboard/mouse input is not currently forwarded and guest SSH does not accept the Mac key. The standalone GUI installer bundle is package-validated."
   },
   "licensing": {
     "status": "passed",
@@ -73,20 +93,41 @@
     "detail": "Owner confirmed CAT/XF/LambdaScript first-party ownership and MIT licensing; third-party terms retained"
   },
   "ci": {
-    "status": "deferred_by_user",
-    "evidence": "../.github/workflows/cat.yml",
-    "detail": "Workflow prepared and YAML syntax checked; user requested local-only; GitHub Actions not executed"
+    "status": "passed",
+    "evidence": ".github/workflows/cat.yml; docs/fuzz-macos.json; docs/native-pi-final.json",
+    "detail": "The workflow remains local per user request. Current-source Mac release, ASan/UBSan, TSan, streaming, packaging, app-bundle, and 60-second fuzz commands passed in isolated builds. Native Pi release/sanitizer/GUI/streaming results are recorded. GitHub-hosted Actions were not dispatched."
   },
-  "release_state": "development candidate validated locally and on Pi; no public release/tag/upload performed; CI execution intentionally deferred",
+  "release_state": "Not yet production-ready: current-source local Mac and Pi release/sanitizer suites, Linux and macOS GUI checks, source/binary/Windows-GUI packaging, streaming, bidirectional exchange, shared CLI integration, fuzzing, and the NBL cross-target tool matrix pass. Local CI test commands passed; Windows GUI runtime validation remains scheduled for the final hardening pass, and hosted Actions remain unrun by request.",
   "known_limits": [
-    "4096 entries, depth 64, 2 MiB manifest; configured byte/disk budgets",
+    "2000 regular files, 64,000,000,000 total input bytes, 4096 entries, depth 64, 2 MiB manifest; configured archive/disk budgets",
     "Regular files/directories and 0777 modes; no timestamps/ownership/ACL/xattr/link preservation",
     "SIGKILL/power loss/unsupported directory fsync cannot guarantee crash-durable publication",
     "TSan coverage is serial; workers remain deferred",
-    "Apple Clang 21 lacks LSan/libFuzzer runtimes on this target; Homebrew LLVM 23 used for fuzzing; Pi Clang14 crashed compiling XF, GCC12 passed",
-    "Pi encode throughput on the 18 MiB synthetic incompressible input is about 50 KiB/s; large/interactive workloads need performance work."
+    "Repeated-block cache holds only the last successful block transform in a session; the 4 MiB identical-block benchmark accelerated substantially, while random input and archive format/bytes are unchanged.",
+    "Pi Zero 2 W, current-source 24 MiB random input: plain encode/decode 8.08/7.69 s; gzip encode/decode 13.07/7.54 s; peak RSS about 15.0 MiB. Gzip increases this incompressible archive from 25,193,609 to 25,201,307 bytes.",
+    "Repeated-block cache holds only the last successful block transform in a session; the 4 MiB identical-block benchmark accelerated substantially, while random input and archive format/bytes are unchanged."
   ],
-  "native_code_sha256": "e088c0bc342f2cdf8b1eb2c66becc03dc45be13aeaf35e7a940f48c236cefa10",
-  "build_config_note": "Final native regression uses the same runtime sources and Makefile as the local candidate, with explicit CC=cc. Dedicated LSan persistent coverage predates only the archive file-type/open-race fix; final CLI leak paths were rerun after that fix.",
-  "current_code_sha256": "e088c0bc342f2cdf8b1eb2c66becc03dc45be13aeaf35e7a940f48c236cefa10"
+  "native_code_sha256": "ce3a25519c897d13f7b621a40b125677b7b18b717e8417e1f9e7d632bce259c4",
+  "build_config_note": "Current CAT/XF/LambdaScript runtime fingerprint matches on Mac and Pi. Full current-source Mac ASan/UBSan, LSan, and TSan passed; full Pi ASan/UBSan, LSan, and TSan plus current-source release, GUI, packaging, and streaming tests passed.",
+  "current_code_sha256": "ce3a25519c897d13f7b621a40b125677b7b18b717e8417e1f9e7d632bce259c4",
+  "xf_memory_failure_fix": {
+    "status": "passed",
+    "evidence": "/Volumes/Projects/XF/vendor/lambdaScript/src/value.c; current-source Mac/Pi sanitizer rebuilds",
+    "detail": "name_stack_push_owned now documents that it consumes its argument on both success and failure; removed the caller-side second free on allocation failure."
+  },
+  "shared_cli_integration": {
+    "status": "passed",
+    "evidence": "make dependency-check; tools/check_project_catc.py; staged make install smoke to DESTDIR",
+    "detail": "Across CAAT, CEP, CIT, CITP, CVCS, css, and ssqlite, the configured installed catc and current source CAT build reported the same format version and passed bidirectional interoperability: each encoded archives for the other to verify and decode, with exact file bytes and mode checked using spaced filenames. Temporary files were removed. A DESTDIR install smoke also confirmed the executable runs with format=0.7 and the installed docs plus all first-party and third-party license notices are present."
+  },
+  "performance_cache": {
+    "status": "passed",
+    "evidence": "4 MiB identical-zero input benchmark, saved pre-cache binary vs current release binary",
+    "detail": "Encode improved from 4.457 s to 0.037 s and decode from 2.947 s to 0.031 s; archive size and SHA-256 stayed identical, and extracted bytes matched."
+  },
+  "nbl_toolchain_matrix": {
+    "status": "passed",
+    "evidence": "/Volumes/Projects/NBL/tests/check_native_tools.py; docs/CROSS-TARGET-VALIDATION.md",
+    "detail": "NBL native assembler/linker matrix emitted and validated 16 OS/CPU target tuples, with 182 negative cases and 19 independent LLVM oracles. This validates NBL output formats; it does not build the CAT C application."
+  }
 }

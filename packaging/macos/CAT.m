@@ -33,7 +33,7 @@ static NSString *HumanSize(unsigned long long value) {
 @property(nonatomic, strong) NSButton *extractButton;
 @property(nonatomic, strong) NSTableView *table;
 @property(nonatomic, strong) NSMutableArray<CATEntry *> *entries;
-@property(nonatomic, copy) NSString *catcPath;
+@property(nonatomic, copy) NSString *catsPath;
 @end
 
 @implementation CATWindow
@@ -78,16 +78,16 @@ static NSString *HumanSize(unsigned long long value) {
     (void)notification;
     self.entries = [NSMutableArray array];
     NSString *resources = NSBundle.mainBundle.resourcePath;
-    self.catcPath = [resources stringByAppendingPathComponent:@"catc"];
+    self.catsPath = [resources stringByAppendingPathComponent:@"cats"];
     NSRect frame = NSMakeRect(0, 0, 900, 650);
     self.window = [[NSWindow alloc] initWithContentRect:frame
         styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                    NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
         backing:NSBackingStoreBuffered defer:NO];
-    self.window.title = @"CAT Archive";
+    self.window.title = @"CATS Archive";
     self.window.minSize = NSMakeSize(700, 500);
 
-    NSTextField *title = [self label:@"Unarchive CAT" size:23 weight:NSFontWeightBold];
+    NSTextField *title = [self label:@"Unarchive CATS" size:23 weight:NSFontWeightBold];
     NSTextField *subtitle = [self label:@"Inspect and safely extract a CAT archive." size:13 weight:NSFontWeightRegular];
     self.archiveField = [NSTextField textFieldWithString:@""];
     self.archiveField.placeholderString = @"Choose a .cat archive";
@@ -183,7 +183,7 @@ static NSString *HumanSize(unsigned long long value) {
     NSString *name = path.lastPathComponent;
     if ([name.lowercaseString hasSuffix:@".cat.gz"]) name = [name substringToIndex:name.length - 7];
     else if ([name.lowercaseString hasSuffix:@".cat"]) name = [name substringToIndex:name.length - 4];
-    if (name.length == 0) name = @"CAT Archive";
+    if (name.length == 0) name = @"CATS Archive";
     NSString *candidate = name;
     NSUInteger suffix = 1;
     while ([[NSFileManager defaultManager] fileExistsAtPath:[parent stringByAppendingPathComponent:candidate]])
@@ -216,7 +216,7 @@ static NSString *HumanSize(unsigned long long value) {
 
 - (NSArray<NSString *> *)runCAT:(NSArray<NSString *> *)arguments error:(NSError **)error {
     NSTask *task = [[NSTask alloc] init];
-    task.executableURL = [NSURL fileURLWithPath:self.catcPath];
+    task.executableURL = [NSURL fileURLWithPath:self.catsPath];
     task.arguments = arguments;
     NSPipe *output = [NSPipe pipe];
     NSPipe *errors = [NSPipe pipe];
@@ -316,7 +316,7 @@ static NSString *HumanSize(unsigned long long value) {
 
 - (void)showError:(NSString *)message {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"CAT Archive";
+    alert.messageText = @"CATS Archive";
     alert.informativeText = message.length ? message : @"The operation failed.";
     alert.alertStyle = NSAlertStyleCritical;
     [alert runModal];

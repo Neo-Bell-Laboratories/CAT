@@ -9,29 +9,29 @@ import subprocess
 import sys
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--binary', default='bin/catc')
+parser.add_argument('--binary', default='bin/cats')
 parser.add_argument('--output', default='build/macos/CAT.app')
 args = parser.parse_args()
 
 if platform.system() != 'Darwin':
-    sys.exit('CAT.app packaging requires macOS')
+    sys.exit('CATS.app packaging requires macOS')
 
 cat = Path(__file__).resolve().parent.parent
 binary = Path(args.binary).resolve()
 output = Path(args.output).resolve()
 packaging = cat / 'packaging' / 'macos'
 if not binary.is_file():
-    sys.exit(f'CAT binary not found: {binary}')
+    sys.exit(f'CATS binary not found: {binary}')
 if any(not (packaging / name).is_file() for name in (
         'CAT.m', 'CAT.icns', 'CAT.svg', 'CATDoc.icns', 'CATDoc.svg')):
     sys.exit('macOS app resources are incomplete')
 version_match = re.search(r'#define CAT_VERSION "([^"]+)"', (cat / 'src' / 'catc.c').read_text())
 if not version_match:
-    sys.exit('cannot determine CAT version')
+    sys.exit('cannot determine CATS version')
 version = version_match.group(1)
 build_version = re.match(r'\d+(?:\.\d+)*', version)
 if not build_version:
-    sys.exit(f'CAT version cannot be represented as a bundle version: {version}')
+    sys.exit(f'CATS version cannot be represented as a bundle version: {version}')
 
 contents = output / 'Contents'
 macos = contents / 'MacOS'
@@ -59,7 +59,7 @@ except (OSError, subprocess.CalledProcessError) as error:
         sys.stderr.write(error.stderr.decode('utf-8', errors='replace'))
     sys.exit('macOS app build requires clang and the macOS Cocoa SDK')
 launcher.chmod(0o755)
-cli = resources / 'catc'
+cli = resources / 'cats'
 shutil.copyfile(binary, cli)
 cli.chmod(0o755)
 for name in ('CAT.icns', 'CAT.svg', 'CATDoc.icns', 'CATDoc.svg'):
@@ -73,13 +73,14 @@ info = {
     'CFBundleIconFile': 'CAT.icns',
     'CFBundleIdentifier': 'com.kenseitehdev.cat',
     'CFBundleInfoDictionaryVersion': '6.0',
-    'CFBundleName': 'CAT',
+    'CFBundleName': 'CATS',
+    'CFBundleDisplayName': 'CATS — Compression Aggregate Tree System',
     'CFBundlePackageType': 'APPL',
     'CFBundleShortVersionString': version,
     'CFBundleVersion': build_version.group(0),
     'LSApplicationCategoryType': 'public.app-category.utilities',
     'CFBundleDocumentTypes': [{
-        'CFBundleTypeName': 'CAT Archive',
+        'CFBundleTypeName': 'CATS Archive',
         'CFBundleTypeIconFile': 'CATDoc.icns',
         'CFBundleTypeRole': 'Viewer',
         'LSHandlerRank': 'Owner',
@@ -87,7 +88,7 @@ info = {
     }],
     'UTExportedTypeDeclarations': [{
         'UTTypeIdentifier': uti,
-        'UTTypeDescription': 'CAT Compressed Aggregate Tree Archive',
+        'UTTypeDescription': 'CATS Compressed Aggregate Tree Archive',
         'UTTypeIconFile': 'CATDoc.icns',
         'UTTypeConformsTo': ['public.data', 'public.archive'],
         'UTTypeTagSpecification': {
@@ -102,6 +103,6 @@ with (contents / 'Info.plist').open('wb') as f:
 (contents / 'PkgInfo').write_bytes(b'APPL????')
 (contents / 'PkgInfo').chmod(0o644)
 for resource in resources.iterdir():
-    resource.chmod(0o755 if resource.name == 'catc' else 0o644)
+    resource.chmod(0o755 if resource.name == 'cats' else 0o644)
 subprocess.run(['plutil', '-lint', str(contents / 'Info.plist')], check=True)
-print(f'Built native macOS CAT archive extractor {output} with CAT {version}')
+print(f'Built native macOS CATS archive extractor {output} with CAT {version}')

@@ -1,5 +1,6 @@
 # CAT Table v0.1. Bytes are numbers 0..255; positions retain original order.
-# C supplies cat_input() and retains the value passed to cat_capture().
+# C feeds one trigger record per block; the typed input callback returns that
+# block and cat_capture receives the aggregate tree or reconstructed bytes.
 map fn cat_table_from_bytes(arr bytes) {
     arr rows = []
     num i = 0

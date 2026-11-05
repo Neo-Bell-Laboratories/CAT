@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import struct
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,20 @@ class GuiArchiveTests(unittest.TestCase):
                          (self.tree / 'mixed.txt').read_bytes())
         self.assertTrue((destination / 'tree' / 'empty' / 'nested').is_dir())
 
+    def test_compact_v08_plain_and_gzip_archives(self):
+        for suffix, flags in [('plain', '-ec'), ('gzip', '-ecg')]:
+            with self.subTest(suffix=suffix):
+                archive = self.root / ('compact-' + suffix + '.cat' + ('.gz' if suffix == 'gzip' else ''))
+                subprocess.run([str(self.binary), flags, str(self.source_file),
+                                '--output', str(archive)], check=True, capture_output=True)
+                info = cat_archive.inspect_archive(archive)
+                self.assertEqual(info.version, 8)
+                self.assertEqual(info.gzipped, suffix == 'gzip')
+                output = self.root / ('compact-' + suffix + '-out')
+                cat_archive.extract_archive(archive, output)
+                self.assertEqual((output / self.source_file.name).read_bytes(),
+                                 self.source_file.read_bytes())
+
     def test_old_plain_and_gzip_golden_archives(self):
         golden = Path(__file__).resolve().parent / 'golden'
         for name in ('v01.cat', 'v01.cat.gz'):
@@ -76,15 +91,57 @@ class GuiArchiveTests(unittest.TestCase):
             cat_archive.extract_archive(self.archive, destination)
         self.assertEqual((destination / 'keep.txt').read_text(), 'keep')
 
+    def test_destination_appearing_before_publish_is_never_replaced(self):
+        destination = self.root / 'raced-destination'
+        original_publish = cat_archive._rename_directory_noreplace
+
+        def create_destination_then_publish(stage, final_path):
+            final_path.mkdir()
+            (final_path / 'keep.txt').write_text('created during extraction')
+            return original_publish(stage, final_path)
+
+        with unittest.mock.patch.object(cat_archive, '_rename_directory_noreplace',
+                                        side_effect=create_destination_then_publish):
+            with self.assertRaises(cat_archive.ArchiveError):
+                cat_archive.extract_archive(self.archive, destination)
+        self.assertEqual((destination / 'keep.txt').read_text(), 'created during extraction')
+
     def test_windows_path_restrictions(self):
         class FakeEntry:
             def __init__(self, path):
                 self.path_bytes = path.encode('utf-8')
                 self.path = path
-        for name in ('folder/CON.txt', 'folder/has:colon', 'folder/trailing.'):
+        for name in ('folder/CON.txt', 'folder/has:colon', 'folder/trailing.',
+                     'folder/COM¹.txt', 'folder/LPT²'):
             with self.subTest(name=name), unittest.mock.patch.object(cat_archive.os, 'name', 'nt'):
                 with self.assertRaises(cat_archive.ArchiveError):
                     cat_archive._validate_windows_names([FakeEntry(name)])
+
+    def test_reader_enforces_file_count_and_total_byte_caps(self):
+        def make_archive(entries):
+            manifest = bytearray()
+            for index, (name, size) in enumerate(entries):
+                path = name.encode('utf-8')
+                manifest += (struct.pack('>IBBHIIQQ', index, 2, 1, 0o600,
+                                         len(path), 0, size, 0) +
+                             hashlib.sha256(b'').digest() + path)
+            body = (b'CAT\0\x07\0\0\0' +
+                    struct.pack('>IIQQ', len(entries), 0, len(manifest), 0) + manifest)
+            return body + hashlib.sha256(body).digest()
+
+        exact_limit = self.root / 'exactly-2000-files.cat'
+        exact_limit.write_bytes(make_archive([('f%04d' % i, 0) for i in range(2000)]))
+        self.assertEqual(len(cat_archive.inspect_archive(exact_limit).entries), 2000)
+
+        too_many = self.root / 'too-many-files.cat'
+        too_many.write_bytes(make_archive([('f%04d' % i, 0) for i in range(2001)]))
+        with self.assertRaises(cat_archive.ArchiveError):
+            cat_archive.inspect_archive(too_many)
+
+        too_large = self.root / 'too-large.cat'
+        too_large.write_bytes(make_archive([('huge', 64_000_000_001)]))
+        with self.assertRaises(cat_archive.ArchiveError):
+            cat_archive.inspect_archive(too_large)
 
 
 if __name__ == '__main__':

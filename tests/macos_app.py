@@ -1,4 +1,4 @@
-"""Validate CAT.app metadata, native GUI executable, and Finder icon."""
+"""Validate the CATS-branded CAT.app metadata, native GUI executable, and Finder icon."""
 import os
 from pathlib import Path
 import plistlib
@@ -22,6 +22,8 @@ with tempfile.TemporaryDirectory(prefix='cat-macos-app-test-') as td:
 
     cli_version = subprocess.check_output([str(binary), '--version'], text=True).split()[1]
     assert info['CFBundleExecutable'] == 'CAT'
+    assert info['CFBundleName'] == 'CATS'
+    assert info['CFBundleDisplayName'].startswith('CATS —')
     assert info['CFBundleShortVersionString'] == cli_version
     assert info['CFBundlePackageType'] == 'APPL'
     assert info['CFBundleIconFile'] == 'CAT.icns'
@@ -50,11 +52,11 @@ with tempfile.TemporaryDirectory(prefix='cat-macos-app-test-') as td:
     assert 'Mach-O' in launcher_info
     assert not (contents / 'Resources' / 'cat_gui.py').exists()
     assert (contents / 'Resources' / 'CATDoc.svg').is_file()
-    assert os.access(contents / 'Resources' / 'catc', os.X_OK)
+    assert os.access(contents / 'Resources' / 'cats', os.X_OK)
     for directory in (app, contents, contents / 'MacOS', contents / 'Resources'):
         assert directory.stat().st_mode & 0o777 == 0o755
     assert (contents / 'Info.plist').stat().st_mode & 0o777 == 0o644
     assert icon.stat().st_mode & 0o777 == 0o644
     subprocess.run(['plutil', '-lint', str(info_path)], check=True, capture_output=True)
 
-print('PASS: CAT.app plist, .cat UTI, icons, and native GUI executable')
+print('PASS: CATS CAT.app plist, .cat UTI, icons, and native GUI executable')

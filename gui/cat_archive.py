@@ -1,5 +1,7 @@
 """Portable, lossless CAT archive validation and extraction for the GUI."""
 from contextlib import contextmanager
+import ctypes
+import errno
 from dataclasses import dataclass
 import gzip
 import hashlib
@@ -8,20 +10,22 @@ from pathlib import Path
 import shutil
 import stat
 import struct
+import sys
 import tempfile
 import unicodedata
 import zlib
 
 MAX_ENTRIES = 4096
+MAX_FILES = 2000
 MAX_DEPTH = 64
 MAX_PATH_BYTES = 4096
 MAX_MANIFEST = 2 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 64 * 1024 * 1024 * 1024
-MAX_INPUT_BYTES = 64 * 1024 * 1024 * 1024
+MAX_INPUT_BYTES = 64_000_000_000
 HEADER_BYTES = 32
 RECORD_BYTES = 64
 BLOCK_MAX = {1: 4096, 2: 16384, 3: 65536, 4: 32768,
-             5: 131072, 6: 8192, 7: 8192}
+             5: 131072, 6: 8192, 7: 8192, 8: 8192}
 ZERO_HASH = bytes(32)
 
 
@@ -92,7 +96,7 @@ def _validate_windows_names(entries):
             raise ArchiveError('this archive has a backslash filename Windows cannot restore safely')
         components = path.split('/')
         for component in components:
-            stem = component.split('.', 1)[0].upper()
+            stem = unicodedata.normalize('NFKC', component.split('.', 1)[0]).upper()
             if (not component or component.endswith((' ', '.')) or
                     any(ord(ch) < 32 or ch in forbidden for ch in component) or stem in reserved):
                 raise ArchiveError('this archive has a filename Windows cannot restore safely')
@@ -195,9 +199,11 @@ def _manifest(stream, file_size):
     payload_remaining = payload_size
     payload_offset = HEADER_BYTES + manifest_size
     total = 0
+    file_count = 0
     entries = []
     by_path = {}
     block_max = BLOCK_MAX[version]
+    frame_width = 2 if version == 8 else 4
     for index in range(count):
         if remaining < RECORD_BYTES:
             raise ArchiveError('truncated archive manifest')
@@ -214,6 +220,7 @@ def _manifest(stream, file_size):
                 path_length >= MAX_PATH_BYTES or path_length > remaining or
                 kind not in (1, 2) or scheme != (1 if kind == 2 else 0) or
                 mode > 0o777 or size > MAX_INPUT_BYTES - total or
+                (kind == 2 and file_count == MAX_FILES) or
                 packed > payload_remaining):
             raise ArchiveError('invalid archive manifest record')
         path_bytes = _read_exact(stream, path_length)
@@ -225,7 +232,7 @@ def _manifest(stream, file_size):
             raise ArchiveError('directory record carries file data')
         if kind == 2:
             blocks = (size + block_max - 1) // block_max
-            if blocks > packed // 10:
+            if blocks > packed // (2 + 2 * frame_width):
                 raise ArchiveError('impossible file/block size claim')
         parent_bytes = path_bytes.rpartition(b'/')[0]
         if parent_bytes:
@@ -238,12 +245,14 @@ def _manifest(stream, file_size):
         entries.append(entry)
         by_path[path_bytes] = entry
         total += size
+        if kind == 2:
+            file_count += 1
         payload_remaining -= packed
         payload_offset += packed
     if remaining or payload_remaining:
         raise ArchiveError('unreferenced manifest or payload bytes')
     _validate_windows_names(entries)
-    return version, entries, total, block_max
+    return version, entries, total, block_max, frame_width
 
 
 def _varint(data, position):
@@ -304,17 +313,19 @@ def _decode_tree(data, expected):
     return bytes(output)
 
 
-def _decode_file(stream, entry, block_max, sink):
+def _decode_file(stream, entry, block_max, frame_width, sink):
     remaining = entry.payload_size
     original = entry.size
     digest = hashlib.sha256()
     while remaining:
-        if remaining < 9:
+        frame_size = 1 + 2 * frame_width
+        if remaining < frame_size:
             raise ArchiveError('truncated file block header')
-        frame = _read_exact(stream, 9)
-        remaining -= 9
+        frame = _read_exact(stream, frame_size)
+        remaining -= frame_size
         codec = frame[0]
-        length, packed = struct.unpack('>II', frame[1:9])
+        length = int.from_bytes(frame[1:1 + frame_width], 'big')
+        packed = int.from_bytes(frame[1 + frame_width:], 'big')
         expected = min(original, block_max)
         if (not length or length != expected or packed > remaining or
                 packed > block_max):
@@ -341,7 +352,7 @@ def _decode_file(stream, entry, block_max, sink):
         raise ArchiveError('file SHA-256 check failed for %s' % entry.path)
 
 
-def _scan(stream, entries, block_max, stage=None):
+def _scan(stream, entries, block_max, frame_width, stage=None):
     for entry in entries:
         if entry.kind != 2:
             continue
@@ -354,12 +365,45 @@ def _scan(stream, entries, block_max, stage=None):
             output = open(target, 'xb')
             sink = output
         try:
-            _decode_file(stream, entry, block_max, sink)
+            _decode_file(stream, entry, block_max, frame_width, sink)
         finally:
             if output is not None:
                 output.close()
         if stage is not None and os.name != 'nt':
             os.chmod(target, entry.mode)
+
+
+def _rename_directory_noreplace(source, destination):
+    """Atomically publish a staged directory without replacing any path."""
+    if os.name == 'nt':
+        # Windows os.rename fails if the destination already exists.
+        os.rename(str(source), str(destination))
+        return
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    old_path = os.fsencode(source)
+    new_path = os.fsencode(destination)
+    if sys.platform.startswith('linux'):
+        rename = getattr(libc, 'renameat2', None)
+        if rename is None:
+            raise OSError(errno.ENOTSUP, 'atomic no-replace rename is unavailable', str(destination))
+        rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                           ctypes.c_char_p, ctypes.c_uint)
+        rename.restype = ctypes.c_int
+        result = rename(-100, old_path, -100, new_path, 1)  # AT_FDCWD, RENAME_NOREPLACE
+    elif sys.platform == 'darwin':
+        rename = getattr(libc, 'renamex_np', None)
+        if rename is None:
+            raise OSError(errno.ENOTSUP, 'atomic no-replace rename is unavailable', str(destination))
+        rename.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+        rename.restype = ctypes.c_int
+        result = rename(old_path, new_path, 0x00000004)  # RENAME_EXCL
+    else:
+        raise OSError(errno.ENOTSUP, 'atomic no-replace rename is unsupported on this OS', str(destination))
+
+    if result != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), str(destination))
 
 
 def _parse(stream, path, gzipped, destination=None):
@@ -368,7 +412,7 @@ def _parse(stream, path, gzipped, destination=None):
     if file_size > MAX_ARCHIVE_BYTES:
         raise ArchiveError('archive exceeds the 64 GiB limit')
     _archive_digest(stream, file_size)
-    version, entries, total, block_max = _manifest(stream, file_size)
+    version, entries, total, block_max, frame_width = _manifest(stream, file_size)
     stage = None
     final_path = None
     try:
@@ -384,7 +428,7 @@ def _parse(stream, path, gzipped, destination=None):
                 if entry.kind == 1:
                     target = stage.joinpath(*entry.path.split('/'))
                     target.mkdir(parents=True, exist_ok=True)
-            _scan(stream, entries, block_max, stage)
+            _scan(stream, entries, block_max, frame_width, stage)
             if os.name != 'nt':
                 for entry in reversed(entries):
                     if entry.kind == 1:
@@ -392,10 +436,10 @@ def _parse(stream, path, gzipped, destination=None):
                         os.chmod(target, entry.mode)
             if os.path.lexists(str(final_path)):
                 raise ArchiveError('extraction destination appeared during operation')
-            os.rename(str(stage), str(final_path))
+            _rename_directory_noreplace(stage, final_path)
             stage = None
         else:
-            _scan(stream, entries, block_max)
+            _scan(stream, entries, block_max, frame_width)
         return ArchiveInfo(os.fspath(path), version, entries, total, gzipped)
     except OSError as error:
         raise ArchiveError('extraction failed: %s' % error)
