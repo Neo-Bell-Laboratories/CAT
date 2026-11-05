@@ -143,9 +143,17 @@ install: $(BIN)
 	install -m 644 $(filter-out licenses/._%,$(wildcard licenses/*.txt)) $(DESTDIR)$(PREFIX)/share/doc/catc/licenses/
 package: $(BIN)
 	python3 tools/package.py binary --binary $(BIN) --output releases/catc-development-binary.tar.gz
+macos-app: $(BIN)
+	python3 tools/macos_app.py --binary $(BIN) --output $(BUILD)/macos/CAT.app
+macos-app-test: $(BIN)
+	python3 tests/macos_app.py $(BIN)
+gui:
+	python3 gui/cat_gui.py
+gui-test: $(BIN)
+	python3 tests/gui_archive.py $(BIN)
 source-package:
 	python3 tools/package.py source --output releases/catc-development-source.tar.gz
-.PHONY: install package source-package
+.PHONY: install package macos-app macos-app-test gui gui-test source-package
 release-check:
 	python3 tools/release_check.py
 .PHONY: release-check
@@ -154,6 +162,7 @@ $(BUILD)/sha256-test: tests/sha256_test.c $(BUILD)/cat/sha256.o
 sha256-test: $(BUILD)/sha256-test
 	./$(BUILD)/sha256-test
 test: sha256-test
+test: gui-test
 .PHONY: sha256-test
 packaging-test: $(BUILD)/catc
 	python3 tests/packaging.py $(BUILD)/catc

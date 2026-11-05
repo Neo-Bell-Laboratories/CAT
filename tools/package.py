@@ -29,7 +29,7 @@ def collect(path):
             collect(child)
     elif path.is_file():files[str(path.relative_to(workspace))]=path.read_bytes()
 if args.kind=='source':
-    for name in ['src','lib','tests','tools','docs','Makefile','README.md','LICENSE','THIRD_PARTY.md','licenses']:
+    for name in ['src','lib','gui','tests','tools','docs','packaging','Makefile','README.md','LICENSE','THIRD_PARTY.md','licenses']:
         collect(cat/name)
     for name in ['src','include','public','lib/api.c','lib/api.h','lib/driver.c','lib/driver.h',
                  'vendor/lambdaScript/src','vendor/lambdaScript/include']:

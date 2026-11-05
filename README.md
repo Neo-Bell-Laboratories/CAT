@@ -3,16 +3,16 @@
 CAT is a serial C/XF file and directory archiver with repeatable path exclusions
 and an optional gzip stage.
 XF and its vendored LambdaScript runtime are statically linked; ByteLang is
-excluded. Tool version is `0.2.0-dev`; new archives use CAT format v0.6 and
-readers retain compatibility with v0.1 through v0.5.
+excluded. Tool version is `0.2.0-dev`; new archives use CAT format v0.7 and
+readers retain compatibility with v0.1 through v0.6.
 This is a development build with explicit release gates, not a production label.
 
 From `CAT/`:
 
 ```sh
 make
-./bin/catc -eg /path/to/input archive.cat.gz
-./bin/catc -e --exclude build -x '*.o' /path/to/input archive.cat
+./bin/catc -eg /path/to/input /path/to/other --output archive.cat.gz
+./bin/catc -e --exclude build -x '*.o' /path/to/input --output archive.cat
 ./bin/catc -v archive.cat.gz
 ./bin/catc -i archive.cat.gz
 ./bin/catc -d archive.cat.gz restored
@@ -25,10 +25,21 @@ and `verify` commands and their long flags still work. `-eg` and `-ge` mean enco
 with gzip; decoding detects gzip from contents, independent of filename extension.
 `--` ends option parsing. Inspect escapes filenames so terminal control bytes and
 invalid UTF-8 cannot emit terminal commands.
+Encoding accepts multiple files and directories. Each is archived under its
+basename, and duplicate basenames are rejected. Use `-o FILE` or `--output FILE`
+to name the archive explicitly when passing multiple inputs. The former
+`INPUT OUTPUT` form remains supported for one input. CAT format v0.7 supports
+multiple top-level entries; older CAT readers may not read these archives.
+
 `--exclude PATTERN` and `-x PATTERN` can be repeated when encoding. Patterns are
-matched against paths relative to the input root; patterns without `/` also match
-basenames at any depth. Excluding a directory prunes its contents, and the input
-root remains in the archive.
+matched against paths relative to each input root. `*`, `?`, and bracket patterns
+do not cross `/` and can match leading dots; patterns without `/` also match
+basenames at any depth. There is no special `**` recursive-wildcard syntax:
+excluding a directory prunes its contents, so a basename pattern such as `build`
+excludes matching directories at any depth. The input root remains in the archive.
+Encoding reports how many paths matched and warns when none did. Exclusion
+patterns are not stored in the archive, so keep the command or patterns with the
+archive if you need an audit trail.
 
 ## Streaming and resource controls
 
@@ -118,6 +129,9 @@ make CC=cc lsan            # full suite on supported Linux hosts
 make CC=cc MODE=lsan leak-test # persistent/focused native leak suite on the Pi
 make streaming-test        # 24 MiB plain/gzip round trips and RSS check
 make packaging-test        # checksums, reproducible source bundle, fresh build
+make macos-app             # build build/release/macos/CAT.app
+make macos-app-test        # validate native GUI, plist and icons
+make gui                   # start the cross-platform archive GUI
 make fuzz FUZZ_SECONDS=120 # libFuzzer + ASan/UBSan, archive and tree targets
 ```
 
@@ -144,6 +158,13 @@ python3 tools/validate_remote.py user@host --cc cc --jobs 1
 ```
 
 ## Packaging and licensing
+
+`make macos-app` builds a `CAT.app` bundle with a native Cocoa interface, a
+Finder document icon, and `.cat` document registration. Double-clicking a
+`.cat` file opens its inspector. The Python GUI can run on Linux and Windows
+with Tk installed. Extraction
+validates the archive before writing and refuses to overwrite an existing
+destination.
 
 ```sh
 make package source-package   # private development bundles plus SHA-256 manifests

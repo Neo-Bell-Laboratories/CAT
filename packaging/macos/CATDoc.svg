@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <filter id="shadow" x="80" y="45" width="864" height="940" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+  </defs>
+  <path d="M216 112h420l208 208v571c0 33-27 60-60 60H216c-33 0-60-27-60-60V172c0-33 27-60 60-60z" fill="#10263d" opacity=".18" filter="url(#shadow)"/>
+  <path d="M194 82h430l206 206v586c0 34-28 62-62 62H194c-34 0-62-28-62-62V144c0-34 28-62 62-62z" fill="#fff8ed" stroke="#183d5b" stroke-width="28" stroke-linejoin="round"/>
+  <path d="M624 82v206h206" fill="#e9dcca" stroke="#183d5b" stroke-width="24" stroke-linejoin="round"/>
+  <g transform="translate(102 40) scale(.8)">
+    <path d="m337 475 25-104 86 56c20-7 42-11 64-11s44 4 64 11l86-56 25 104c25 27 39 62 39 100 0 84-82 151-214 151s-214-67-214-151c0-38 14-73 39-100z" fill="#e98b45"/>
+    <path d="m363 393 15-55 49 32m188 23-15-55-49 32" fill="#f4b36d"/>
+    <ellipse cx="445" cy="490" rx="16" ry="23" fill="#18304d"/>
+    <ellipse cx="579" cy="490" rx="16" ry="23" fill="#18304d"/>
+    <ellipse cx="482" cy="545" rx="39" ry="27" fill="#fff0dd"/>
+    <ellipse cx="542" cy="545" rx="39" ry="27" fill="#fff0dd"/>
+    <path d="M490 531q22-20 44 0l-22 19z" fill="#a94e54"/>
+    <rect x="507" y="550" width="10" height="20" rx="5" fill="#18304d"/>
+    <rect x="477" y="567" width="36" height="10" rx="5" transform="rotate(-24 495 572)" fill="#18304d"/>
+    <rect x="511" y="567" width="36" height="10" rx="5" transform="rotate(24 529 572)" fill="#18304d"/>
+  </g>
+  <path d="M447 756h-42c-26 0-45 19-45 42s19 42 45 42h42v-19h-42c-15 0-25-10-25-23s10-23 25-23h42z" fill="#18304d"/>
+  <path d="m467 840 37-84h18l37 84h-23l-8-20h-31l-8 20zm37-39h16l-8-20z" fill="#18304d" fill-rule="evenodd"/>
+  <path d="M581 756h82v19h-31v65h-20v-65h-31z" fill="#18304d"/>
+</svg>
