@@ -4,9 +4,9 @@ CATS is a serial C/XF file and directory archiver with repeatable path exclusion
 and an optional gzip stage.
 XF and its vendored LambdaScript runtime are statically linked; ByteLang is
 excluded. The canonical CLI is `cats`; `catc` remains a compatibility alias for
-existing integrations. Tool version is `0.4.0-dev`. Archives use the CAT wire format: v0.7 by
+existing integrations. Tool version is `0.4.0`. Archives use the CAT wire format: v0.7 by
 default, or compact v0.8 with `-c`. Readers support versions v0.1 through v0.8.
-This is a development build with explicit release gates, not a production label.
+See `docs/release-validation.json` for platform validation and known limits.
 
 From the CATS source directory:
 
@@ -38,6 +38,9 @@ basename, and duplicate basenames are rejected. Use `-o FILE` or `--output FILE`
 to name the archive explicitly when passing multiple inputs. The former
 `INPUT OUTPUT` form remains supported for one input. CAT formats v0.7 and v0.8 support
 multiple top-level entries; older CAT readers may not read these archives.
+An extension-less output name gets `.cat`, or `.cat.gz` when `-g` is enabled.
+Recognized `.cat` and `.cat.gz` suffixes are adjusted to match the `-g` setting;
+other explicit suffixes are preserved.
 
 `--exclude PATTERN` and `-x PATTERN` can be repeated when encoding. Patterns are
 matched against paths relative to each input root. `*`, `?`, and bracket patterns
@@ -235,7 +238,8 @@ versions. Concatenated gzip members and trailing bytes are rejected.
 The original no-gzip synthetic benchmark is in `docs/benchmark-macos.json`; it
 must not be interpreted as a gzip-enabled comparison. Compare identical file
 sets, actual summed byte lengths, metadata policy, runtime and memory before
-claiming a compression advantage. Workers and deduplication remain future work.
+claiming a compression advantage. Parallel workers, deduplication, and
+Zstandard integration are deferred to the [0.5 roadmap](docs/ROADMAP-v0.5.md).
 
 The C adapter currently uses confirmed XF internal typed APIs and one driver
 session per archive. A one-block cache reuses the previous transform for

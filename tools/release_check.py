@@ -15,7 +15,7 @@ else:
     data=json.loads(report.read_text())
     for gate in ['macos_release','macos_asan_ubsan','macos_lsan','macos_tsan','macos_gui_bundle','packaging',
                  'linux_release','linux_lsan','linux_asan_ubsan','linux_tsan','cross_platform_exchange',
-                 'streaming','failure_injection','archive_fuzz','tree_fuzz','linux_gui','windows_gui','shared_cli_integration','ci']:
+                 'streaming','failure_injection','archive_fuzz','tree_fuzz','linux_gui','windows_gui','application_target_builds','shared_cli_integration','ci']:
         if data.get(gate,{}).get('status')!='passed':blockers.append('validation not passed: '+gate)
 if blockers:
     print('NOT READY FOR PUBLIC PRODUCTION RELEASE')

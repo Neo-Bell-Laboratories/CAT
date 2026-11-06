@@ -1,31 +1,31 @@
 {
-  "date": "2026-11-05",
-  "tool_version": "0.4.0-dev",
+  "date": "2026-11-06",
+  "tool_version": "0.4.0",
   "format_version": "0.7",
   "macos_release": {
     "status": "passed",
-    "evidence": "local full current-source release suite; docs/streaming-macos.json",
-    "detail": "182 CLI checks, 34 failure checks, seven GUI archive checks, SHA vectors, transforms, compatibility, deterministic packaging and 24 MiB streaming."
+    "evidence": "make test; isolated clean build `make BUILD=build/audit-release BIN=build/audit-release/cats CATS_PROGRAM=build/audit-release/cats test`; docs/streaming-macos.json",
+    "detail": "The fresh macOS 27.0 release build passed the complete current make test target after suffix-aware failure fixtures were corrected: 201 CLI integration checks, 34 failure-injection checks, eight GUI archive tests, portable v0.7/v0.8 GUI reader fixtures, SHA vectors, transforms, compatibility, static XF smoke, and macOS app validation. The 64 GiB boundary and 24 MiB streaming results remain recorded in their dedicated test evidence."
   },
   "macos_asan_ubsan": {
     "status": "passed",
-    "evidence": "local full current-source instrumented suite",
-    "detail": "Full current-source ASan/UBSan suite passed, including all 182 CLI checks and the v0.5 compression placeholder parser cases."
+    "evidence": "make MODE=asan BUILD=build/asan-api BIN=bin/asan-api/cats test",
+    "detail": "Current-source ASan/UBSan pass after introducing the public transform/support API and NULL-input guards: 197 CLI checks, 34 failure-injection checks, eight GUI archive checks, portable fixtures, transforms, compatibility, SHA vectors, static XF smoke, and macOS app validation passed."
   },
   "macos_lsan": {
     "status": "passed",
-    "evidence": "local Homebrew LLVM full leak-test",
-    "detail": "Current-source full LSan suite passed: transform tests, 532 persistent valid/malformed archive cycles, CLI leak paths, and 182 CLI checks."
+    "evidence": "make MODE=lsan BUILD=build/lsan-api BIN=bin/lsan-api/cats leak-test",
+    "detail": "Current-source LSan pass after the public API changes: transform tests, 532 valid/malformed archive cycles, and native CLI leak paths for encode, gzip, verify, decode, and failed staging cleanup passed."
   },
   "macos_tsan": {
     "status": "passed",
-    "evidence": "local Homebrew LLVM full TSan suite",
-    "detail": "Full current-source TSan suite passed with 182 CLI checks; CAT currently has no worker pool."
+    "evidence": "make MODE=tsan BUILD=build/tsan-api BIN=bin/tsan-api/cats test",
+    "detail": "Current-source TSan pass after the public API changes: transform tests, 197 CLI checks, 34 failure-injection checks, saved-format compatibility, eight GUI archive checks, portable fixtures, SHA vectors, and static XF smoke passed without race reports. Worker pool remains disabled."
   },
   "linux_release": {
     "status": "passed",
-    "evidence": "Pi current-source build log: /tmp/cat-native-validation/CAT/build/release-v05-placeholder.log; tests/gui_smoke.py via xvfb-run",
-    "detail": "Current-source Pi Zero 2 W: 182 CLI checks, 34 failure checks, seven GUI archive checks, static XF smoke, packaging, 24 MiB streaming with exact cmp/SHA and RSS below 16 MiB, plus Tk GUI inspect/extract under Xvfb."
+    "evidence": "docs/current-pi-public-api-validation.json; native Pi source-package build and test",
+    "detail": "Current-source native Pi Zero 2 W (AArch64) release target passed after correcting the failure test's -eg archive path: 201 CLI integration checks, 34 failure-injection checks, eight GUI archive checks, portable v0.7/v0.8 reader fixtures, saved-format compatibility, static XF smoke, and Linux GUI packaging. The refreshed ELF ARM64 binary SHA-256 is recorded in docs/current-pi-public-api-validation.json."
   },
   "linux_lsan": {
     "status": "passed",
@@ -55,7 +55,7 @@
   "failure_injection": {
     "status": "passed",
     "evidence": "tests/failures.py on Mac and Pi",
-    "detail": "34 checks passed on both hosts: disk-full/sync errors, source mutation, cancellation, cleanup, no-overwrite, atomic policy and budgets."
+    "detail": "34 checks passed on macOS and Pi: disk-full/sync errors, source mutation, cancellation, cleanup, no-overwrite, atomic policy and budgets. The suffix change exposed a stale .cat path in the gzip fault fixture; tests/failures.py now targets .cat.gz and the complete suites pass on both hosts."
   },
   "archive_fuzz": {
     "status": "passed",
@@ -69,8 +69,8 @@
   },
   "packaging": {
     "status": "passed",
-    "evidence": "tests/packaging.py; Linux DESTDIR staging; releases/cat-gui-windows-0.4.0-dev.zip",
-    "detail": "Current-source deterministic source and binary bundles passed; Linux GUI installer staged successfully; standalone Windows GUI ZIP passed reproducibility, path-safety, and per-file SHA-256 checks. Windows runtime remains untested."
+    "evidence": "make packaging-test; docs/linux-gui-native-validation.json; docs/pi-aarch64-production-validation.json; Linux DESTDIR staging; make github-release-assets; bin/github-release/CATS-0.4.0/ASSETS.json and SHA256SUMS",
+    "detail": "Production 0.4.0 source, CLI, macOS app, Linux GUI, and Windows GUI assets pass checksum, manifest, path-safety, and reproducibility checks. The production source bundle builds standalone; the package test passes. Linux GUI installation and Pi Tk fixture extraction pass. The Windows GUI package passed native Windows 11 installation, Start menu launch, .cat association, and fixture extraction. Production assets are staged under bin/github-release/CATS-0.4.0 with target manifests and SHA-256 checksums. Native Windows CLI runtime testing is deferred by user preference; the x64 cross-build passed."
   },
   "macos_gui_bundle": {
     "status": "passed",
@@ -79,13 +79,18 @@
   },
   "linux_gui": {
     "status": "passed",
-    "evidence": "Current-source tests/gui_smoke.py via xvfb-run on Raspberry Pi Zero 2 W",
-    "detail": "Tk GUI opened a CAT archive, inspected its entry, extracted it, and verified exact bytes and mode under Xvfb on the headless Pi."
+    "evidence": "docs/linux-gui-native-validation.json; make -j2 all and staged GUI install/runtime test on Raspberry Pi Zero 2 W",
+    "detail": "Native ARM64 default make builds the CLI and standalone Linux GUI package. On the Pi, the installer staged the launcher, desktop/MIME integration, icons, docs, and licenses. Portable v0.7/v0.8 fixtures passed, and Tk inspect/extract succeeded when importing the staged installed GUI copy under Xvfb. The Mac and Pi package SHA-256 hashes match."
   },
   "windows_gui": {
-    "status": "deferred_by_user",
-    "evidence": "docs/WINDOWS-FINAL-VALIDATION.md; packaging/windows/install-gui.ps1; releases/cat-gui-windows-0.4.0-dev.zip",
-    "detail": "Runtime validation is scheduled for the final hardening pass. The Windows 11 desktop is available in TigerVNC, but CUA keyboard/mouse input is not currently forwarded and guest SSH does not accept the Mac key. The standalone GUI installer bundle is package-validated."
+    "status": "passed",
+    "evidence": "Windows 11 TigerVNC guest; current releases/cats-gui-windows.zip SHA-256 5a3cfb13db154f548f811f404f2923c37ef0e713a96f9b542b5c2ef3d307c530; tests/gui_archive_portable.py; tests/gui_fixture_smoke.py; native installer, Start menu launch, and .cat association",
+    "detail": "On Windows 11 with Python 3.14.10 x64/Tk, the portable GUI reader verified v0.7/v0.8 plain/gzip fixtures, paths, exact bytes, hashes, and supported metadata. The Tk GUI inspected/extracted the gzip fixture with exact bytes and SHA-256. The current packaged installer completed and removed development-era gzip handler entries without changing Windows\u2019 existing .gz handler, the generated Start menu shortcut launched the GUI, and opening a .cat fixture through its registered association launched the installed GUI and showed the expected entries. Windows routes .cat.gz through the generic .gz handler, so users open those archives from the GUI Browse button; the installer leaves the default .gz application unchanged."
+  },
+  "windows_cli": {
+    "status": "cross_built_runtime_deferred_by_user",
+    "evidence": "make windows-x64-cross; PE32+ x86_64; SHA-256 b1f17301b704abdb03e299aa81e3fcd899965bd0ca4d010d1681aa1f6b0ea4e5; objdump import table; tests/windows_cli_smoke.ps1 staged on Alienware",
+    "detail": "The Homebrew MinGW-w64 cross-build compiles CAT, XF, and LambdaScript, links static Windows-target zlib and PCRE2, and produces a PE x86_64 CLI with Windows system CRT/API-set, ADVAPI32, BCRYPT, KERNEL32, and NTDLL imports. Windows filesystem operations use relative directory handles, reject reparse points, create owner-restricted temporary content, and publish without replacement. The user has de-prioritized native Windows CLI runtime testing for this release; the PowerShell smoke suite remains staged but unrun. The cross-build is not a claim of native runtime validation. Windows GUI runtime tests passed separately."
   },
   "licensing": {
     "status": "passed",
@@ -97,19 +102,17 @@
     "evidence": ".github/workflows/cat.yml; docs/fuzz-macos.json; docs/native-pi-final.json",
     "detail": "The workflow remains local per user request. Current-source Mac release, ASan/UBSan, TSan, streaming, packaging, app-bundle, and 60-second fuzz commands passed in isolated builds. Native Pi release/sanitizer/GUI/streaming results are recorded. GitHub-hosted Actions were not dispatched."
   },
-  "release_state": "Not yet production-ready: current-source local Mac and Pi release/sanitizer suites, Linux and macOS GUI checks, source/binary/Windows-GUI packaging, streaming, bidirectional exchange, shared CLI integration, fuzzing, and the NBL cross-target tool matrix pass. Local CI test commands passed; Windows GUI runtime validation remains scheduled for the final hardening pass, and hosted Actions remain unrun by request.",
+  "release_state": "The required 0.4 application target checks are recorded as passed. Production 0.4.0 assets are staged with manifests and SHA-256 checksums. Native Windows CLI runtime testing is deferred by user preference and remote matrix orchestration is scheduled for 0.5. The v0.4.0 release commit and tag are ready to be created.",
   "known_limits": [
     "2000 regular files, 64,000,000,000 total input bytes, 4096 entries, depth 64, 2 MiB manifest; configured archive/disk budgets",
     "Regular files/directories and 0777 modes; no timestamps/ownership/ACL/xattr/link preservation",
     "SIGKILL/power loss/unsupported directory fsync cannot guarantee crash-durable publication",
-    "TSan coverage is serial; workers remain deferred",
+    "TSan coverage is serial; parallel workers and their concurrent TSan coverage are deferred to the 0.5 roadmap",
     "Repeated-block cache holds only the last successful block transform in a session; the 4 MiB identical-block benchmark accelerated substantially, while random input and archive format/bytes are unchanged.",
     "Pi Zero 2 W, current-source 24 MiB random input: plain encode/decode 8.08/7.69 s; gzip encode/decode 13.07/7.54 s; peak RSS about 15.0 MiB. Gzip increases this incompressible archive from 25,193,609 to 25,201,307 bytes.",
-    "Repeated-block cache holds only the last successful block transform in a session; the 4 MiB identical-block benchmark accelerated substantially, while random input and archive format/bytes are unchanged."
+    "On the recorded ByteLang sample, CAT without gzip expanded the input by 2.13%; CAT+gzip was 934 bytes larger than tar.gz, and compact -c saved 9 bytes with gzip. Compression size depends on the input tree and exclusions."
   ],
-  "native_code_sha256": "ce3a25519c897d13f7b621a40b125677b7b18b717e8417e1f9e7d632bce259c4",
-  "build_config_note": "Current CAT/XF/LambdaScript runtime fingerprint matches on Mac and Pi. Full current-source Mac ASan/UBSan, LSan, and TSan passed; full Pi ASan/UBSan, LSan, and TSan plus current-source release, GUI, packaging, and streaming tests passed.",
-  "current_code_sha256": "ce3a25519c897d13f7b621a40b125677b7b18b717e8417e1f9e7d632bce259c4",
+  "build_config_note": "Production 0.4.0 macOS release tests, Pi AArch64 native release tests, and Linux x86_64 cross-build runtime checks pass. Earlier current-source ASan/UBSan, LSan, and TSan suites pass. See per-target JSON evidence. Static CATS transform/support libraries and public pkg-config headers are verified through staged install and CAAT.",
   "xf_memory_failure_fix": {
     "status": "passed",
     "evidence": "/Volumes/Projects/XF/vendor/lambdaScript/src/value.c; current-source Mac/Pi sanitizer rebuilds",
@@ -117,8 +120,8 @@
   },
   "shared_cli_integration": {
     "status": "passed",
-    "evidence": "make dependency-check; tools/check_project_catc.py; staged make install smoke to DESTDIR",
-    "detail": "Across CAAT, CEP, CIT, CITP, CVCS, css, and ssqlite, the configured installed catc and current source CAT build reported the same format version and passed bidirectional interoperability: each encoded archives for the other to verify and decode, with exact file bytes and mode checked using spaced filenames. Temporary files were removed. A DESTDIR install smoke also confirmed the executable runs with format=0.7 and the installed docs plus all first-party and third-party license notices are present."
+    "evidence": "make dependency-check (current-source rebuild; all 9 named projects, default and compact archives, both directions); fresh isolated DESTDIR install from build/audit-release plus pkg-config static-link run of tests/transform_test.c; earlier CAAT build linked against installed-style libs and make -C ../CAAT test",
+    "detail": "The checker covers CAT, CEP, CAAT, CITP, CVCS, ssqlite, CIT, css, and kitty litter, resolving names case-insensitively. The installed cats and catc commands report matching 0.7/0.8 formats and pass bidirectional interoperability in both framing modes with exact file bytes and modes, including spaced filenames. The staged install provides cats, catc, public transform/support headers, static CATS/XF/LambdaScript libraries, pkg-config modules, format/license/docs. A standalone consumer compiled and round-tripped an exact 8192-byte block using only the staged public API; CAAT now builds against that library boundary and passes 312 CLI checks plus 200 checks across 10 real audio fixtures. Live CLI installation remains /usr/local/bin/cats and /usr/local/bin/catc with docs/licenses under the selected DATADIR."
   },
   "performance_cache": {
     "status": "passed",
@@ -129,5 +132,25 @@
     "status": "passed",
     "evidence": "/Volumes/Projects/NBL/tests/check_native_tools.py; docs/CROSS-TARGET-VALIDATION.md",
     "detail": "NBL native assembler/linker matrix emitted and validated 16 OS/CPU target tuples, with 182 negative cases and 19 independent LLVM oracles. This validates NBL output formats; it does not build the CAT C application."
+  },
+  "application_target_builds": {
+    "status": "passed",
+    "evidence": "docs/CROSS-TARGET-VALIDATION.md; docs/linux-x64-production-validation.json; docs/pi-aarch64-production-validation.json; docs/arch-x64-manual-validation.json; docs/debian-native-build-current-source.json; native macOS ARM64 suite; Windows x64 cross-build and Windows GUI runtime",
+    "detail": "Required application target checks are complete for macOS ARM64, Linux x86_64, Linux AArch64, and the Windows x86_64 cross-build. The production Linux x86_64 binary with SHA-256 f284e6aa615c149ffec5fafe8978872796d888c1b53d1ae46ee187650eeead01 passed 201 integration checks on Ubuntu x86_64. The production AArch64 build passed 201 CLI checks, 34 failure-injection checks, eight GUI archive checks, transforms, and static XF/LambdaScript smoke on Pi Zero 2 W. The same Linux x86_64 code build (0.4.0-dev version label) was hash-verified on Arch x86_64, where the user reports 281 checks passed. Debian 13 and macOS ARM64 release tests pass. The Windows x86_64 CLI cross-build and Windows GUI runtime pass. Native Windows CLI runtime testing is deferred by user preference and is not claimed as runtime-tested. Automated remote matrix orchestration is deferred to the 0.5 roadmap."
+  },
+  "compression_benchmarks": {
+    "status": "measured_not_a_release_gate",
+    "evidence": "docs/BENCHMARKING.md; docs/benchmark-macos.json; docs/benchmark-pi.json; docs/benchmark-zstd-macos.json; tools/benchmark.py",
+    "detail": "The recorded ByteLang sample was 179644 bytes after excluding build/git/editor metadata. CAT v0.7+gzip was 37131 bytes, 934 bytes larger than tar.gz at 36197 bytes; compact v0.8+gzip saved only 9 bytes versus v0.7+gzip. Zstd 1.5.7 level 3 did not beat CAT+gzip for size on that tree; level 19 wrapped around plain CAT reduced size to 28561 bytes, with a slower single-run encode including process startup. Tar.zst level 19 was 27349 bytes. Random/already-compressed inputs showed little or no gain. Single-run timings are indicative and use different timer boundaries. The same synthetic corpus was also run on the Pi Zero 2 W with the current v0.7/v0.8 binary; it shows the same size ranking across v0.7, v0.8, gzip, tar.gz, and ZIP, while timing is much slower on the Pi."
+  },
+  "debian_gui_runtime": {
+    "status": "passed",
+    "evidence": "docs/debian-gui-validation.json",
+    "detail": "On Debian 13 x86_64, the portable reader passed v0.7/v0.8 plain/gzip fixtures, and the Tk GUI inspected and extracted a v0.7 gzip fixture under Xvfb with exact bytes, hashes, modes, and empty directories."
+  },
+  "debian_native_build_current_source": {
+    "status": "passed",
+    "evidence": "docs/debian-native-build-current-source.json",
+    "detail": "Current-source Debian 13 x86_64 native make test completed with exit code 0: 201 CLI checks, 34 failure-injection checks, eight GUI archive checks, transforms, and static XF/LambdaScript smoke."
   }
 }

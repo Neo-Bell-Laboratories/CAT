@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=${prefix}
+libdir=@cats_libdir@
+includedir=@includedir@
+
+Name: CATS Support
+Description: CATS spool, checksum, and gzip support routines
+Version: 1.0
+Libs: -L${libdir} -lcats-support -lz
+Cflags: -I${includedir}

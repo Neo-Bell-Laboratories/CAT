@@ -1,17 +1,28 @@
-#include "transform.h"
+#include <cats/transform.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 int main(void) {
     if (cat_transform_init()) return 1;
-    uint8_t data[CAT_BLOCK_MAX];
+    uint8_t data[CATS_BLOCK_MAX];
+    uint8_t *invalid_output = (uint8_t *)(uintptr_t)1;
+    size_t invalid_size = 1;
+    if (cat_tree_estimate(NULL, 1) != SIZE_MAX || cat_tree_may_compress(NULL, 1) ||
+        cat_tree_encode(NULL, 1, &invalid_output, &invalid_size) == 0 ||
+        invalid_output != NULL || invalid_size != 0) {
+        fprintf(stderr,"invalid encode input was not rejected cleanly\n"); return 1;
+    }
+    invalid_output = (uint8_t *)(uintptr_t)1;
+    if (cat_tree_decode(NULL, 1, 1, &invalid_output) == 0 || invalid_output != NULL) {
+        fprintf(stderr,"invalid decode input was not rejected cleanly\n"); return 1;
+    }
     unsigned state = 1234567;
     for (int kind = 0; kind < 5; kind++) {
         for (size_t i = 0; i < sizeof(data); i++) {
             state = state * 1664525u + 1013904223u;
             data[i] = kind == 0 ? 0 : kind == 1 ? 255 : kind == 2 ? (uint8_t)i : kind == 3 ? (uint8_t)(i/31) : (uint8_t)(state >> 24);
         }
-        const size_t sizes[] = {0,1,17,256,CAT_BLOCK_MAX};
+        const size_t sizes[] = {0,1,17,256,CATS_BLOCK_MAX};
         for (size_t j = 0; j < sizeof(sizes)/sizeof(sizes[0]); j++) {
             size_t estimate = cat_tree_estimate(data, sizes[j]);
             if (cat_tree_may_compress(data, sizes[j]) != (estimate < sizes[j])) {

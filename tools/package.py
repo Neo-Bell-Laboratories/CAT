@@ -29,7 +29,7 @@ def collect(path):
             collect(child)
     elif path.is_file():files[str(path.relative_to(workspace))]=path.read_bytes()
 if args.kind=='source':
-    for name in ['src','lib','gui','tests','tools','docs','packaging','Makefile','README.md','LICENSE','THIRD_PARTY.md','licenses']:
+    for name in ['src','include','lib','gui','tests','tools','docs','packaging','Makefile','README.md','LICENSE','THIRD_PARTY.md','licenses']:
         collect(cat/name)
     for name in ['src','include','public','lib/api.c','lib/api.h','lib/driver.c','lib/driver.h',
                  'vendor/lambdaScript/src','vendor/lambdaScript/include']:
@@ -59,7 +59,8 @@ else:
     for path in (cat/'docs').iterdir():
         if path.is_file() and not path.name.startswith('._') and path.suffix in ['.md','.json']:files['docs/'+path.name]=path.read_bytes()
 metadata={
-    'version':version,'kind':args.kind,'status':'development-validation; production release requires completed release gates',
+    'version':version,'kind':args.kind,
+    'status':'production-release' if not version.endswith('-dev') else 'development-validation',
     'platform':platform.system()+'-'+platform.machine() if args.kind=='binary' else 'portable-source',
     'format':'0.1','source_date_epoch':epoch,'build_os_release':platform.release(),
     'license_review':{'CAT':'MIT','XF':'MIT first-party; project-owner confirmation recorded' if (workspace/'XF/LICENSE').exists() else 'missing license/provenance confirmation',

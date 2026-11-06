@@ -9,7 +9,9 @@ Requirements: Windows 10 or newer and Python 3 installed with Tcl/Tk.
    powershell -ExecutionPolicy Bypass -File .\packaging\windows\install-gui.ps1
 
 The installer is per-user. It copies the CATS archive viewer into your local
-Programs folder and registers .cat and .cat.gz for the current Windows user.
-Double-click a CATS archive to inspect and extract it. If another application
-keeps the default association, select CATS Archive in Settings > Apps > Default
-apps.
+Programs folder and registers .cat for the current Windows user and creates a CATS Archive Start
+menu shortcut.
+Double-click a .cat archive to inspect and extract it. To inspect a .cat.gz
+archive, launch CATS Archive from the Start menu and choose the archive with
+Browse. Windows handles .cat.gz through its final .gz suffix, so CATS does not
+replace the default application for unrelated .gz files.

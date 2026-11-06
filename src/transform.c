@@ -1,4 +1,4 @@
-#include "transform.h"
+#include <cats/transform.h>
 #include "driver.h"
 #include <math.h>
 #include <stdio.h>
@@ -179,7 +179,7 @@ static int take(const uint8_t *data, size_t n, size_t *pos, size_t *out) {
         uint8_t b = data[(*pos)++];
         v |= (size_t)(b & 127) << shift;
         if (!(b & 128)) {
-            if ((shift && !(b & 127)) || v > CAT_BLOCK_MAX) return -1;
+            if ((shift && !(b & 127)) || v > CATS_BLOCK_MAX) return -1;
             *out = v; return 0;
         }
     }
@@ -189,7 +189,7 @@ static size_t varint_size(size_t v) { size_t n=1; while(v>=128) { v>>=7; n++; } 
 /* Exact serialized tree size, computed in C. This avoids starting an XF driver
  * for blocks whose current bucket/run representation cannot beat raw bytes. */
 static size_t tree_estimate(const uint8_t *bytes, size_t n, size_t stop_at) {
-    if(n>CAT_BLOCK_MAX) return SIZE_MAX;
+    if(n>CATS_BLOCK_MAX) return SIZE_MAX;
     size_t last_end[256]={0}, run_count[256]={0}, current_run[256]={0};
     uint8_t present[256]={0};
     size_t buckets=0, size=varint_size(n)+varint_size(0);
@@ -218,13 +218,14 @@ static size_t tree_estimate(const uint8_t *bytes, size_t n, size_t stop_at) {
     return size;
 }
 size_t cat_tree_estimate(const uint8_t *bytes, size_t n) {
+    if (n && !bytes) return SIZE_MAX;
     return tree_estimate(bytes, n, 0);
 }
 int cat_tree_may_compress(const uint8_t *bytes, size_t n) {
-    return n && n <= CAT_BLOCK_MAX && tree_estimate(bytes, n, n) < n;
+    return bytes && n && n <= CATS_BLOCK_MAX && tree_estimate(bytes, n, n) < n;
 }
 static int tree_encode_active(const uint8_t *bytes, size_t n, uint8_t **out, size_t *out_n) {
-    if (n > CAT_BLOCK_MAX || !initialized || (n && !bytes) || !out || !out_n) return -1;
+    if (n > CATS_BLOCK_MAX || !initialized || (n && !bytes) || !out || !out_n) return -1;
 
     size_t counts[256] = {0}, starts[256], cursor[256];
     size_t bucket_count = 0;
@@ -237,7 +238,7 @@ static int tree_encode_active(const uint8_t *bytes, size_t n, uint8_t **out, siz
     }
     if (next != n) return -1;
 
-    /* CAT_BLOCK_MAX is 8192, so every source position fits in uint16_t. */
+    /* CATS_BLOCK_MAX is 8192, so every source position fits in uint16_t. */
     uint16_t *positions = malloc((n ? n : 1) * sizeof(*positions));
     if (!positions) return -1;
     for (size_t i = 0; i < n; i++) {
@@ -277,21 +278,22 @@ static int tree_encode_active(const uint8_t *bytes, size_t n, uint8_t **out, siz
     return 0;
 }
 int cat_tree_encode(const uint8_t *bytes, size_t n, uint8_t **out, size_t *out_n) {
+    if (out) *out = NULL;
+    if (out_n) *out_n = 0;
     if (!out || !out_n) return -1;
-    *out = NULL;
-    *out_n = 0;
+    if ((n && !bytes) || n > CATS_BLOCK_MAX) return -1;
     if (block_cache_get(0, bytes, n, n, out, out_n)) return 0;
     int rc = tree_encode_active(bytes, n, out, out_n);
     if (!rc) block_cache_put(0, bytes, n, n, *out, *out_n);
     return rc;
 }
 static int tree_decode_active(const uint8_t *data, size_t n, size_t expected, uint8_t **out) {
-    if (expected > CAT_BLOCK_MAX || !initialized) return -1;
+    if (expected > CATS_BLOCK_MAX || !initialized) return -1;
     size_t pos = 0, length, buckets_n, total = 0;
     if (take(data,n,&pos,&length) || length != expected || take(data,n,&pos,&buckets_n) || buckets_n > 256) return -1;
     xf_map_t *buckets = xf_map_new(), *tree = xf_map_new();
     if (!buckets || !tree) { if (buckets) xf_map_release(buckets); if (tree) xf_map_release(tree); return -1; }
-    uint8_t seen[CAT_BLOCK_MAX] = {0};
+    uint8_t seen[CATS_BLOCK_MAX] = {0};
     int previous_byte = -1, rc = 0;
     for (size_t b = 0; b < buckets_n && !rc; b++) {
         if (pos == n) { rc = -1; break; }
@@ -337,6 +339,9 @@ static int tree_decode_active(const uint8_t *data, size_t n, size_t expected, ui
     *out = bytes; return 0;
 }
 int cat_tree_decode(const uint8_t *data, size_t n, size_t expected, uint8_t **out) {
+    if (!out) return -1;
+    *out = NULL;
+    if ((n && !data) || expected > CATS_BLOCK_MAX) return -1;
     int own_session = !session_active;
     if (own_session && cat_transform_session_begin(1)) return -1;
     int rc;

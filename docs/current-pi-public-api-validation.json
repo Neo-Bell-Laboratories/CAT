@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-05",
+  "platform": "Linux 6.12.109+rpt-rpi-v8 aarch64; Raspberry Pi Zero 2 W",
+  "source_package_sha256": "2a25e17232b36140f36d92eedd72cbc32192d8b02294a3701b0af02b9795cf46",
+  "remote_directory": "/tmp/cats-current-source.IXPfM0/cats-0.4.0-dev/CAT",
+  "command": "make -j2 MODE=release BUILD=build/release-current BIN=bin/cats test",
+  "results": {
+    "cli_integration": {
+      "status": "passed",
+      "checks": 201
+    },
+    "failure_injection": {
+      "status": "passed",
+      "checks": 34,
+      "detail": "Rerun after correcting the test archive path for -eg output (.cat.gz); all failure-injection cases pass."
+    },
+    "gui_archive": {
+      "status": "passed",
+      "checks": 8
+    },
+    "compatibility": {
+      "status": "passed",
+      "detail": "v0.1 plain/gzip golden archives restored exact bytes and modes"
+    },
+    "xf_smoke": {
+      "status": "passed",
+      "detail": "static XF 1.0.0 and LambdaScript bridge"
+    }
+  },
+  "binary_sha256": "ee2b79ebc073a9e1fb712c1dec13c3c1ed75faa592613380933b876714c3382d",
+  "runtime_version": "cats 0.4.0-dev format=0.7 compact_format=0.8 xf=1.0.0 zlib=1.2.13"
+}

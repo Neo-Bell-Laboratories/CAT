@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-06",
+  "tool_version": "0.4.0",
+  "host": "Raspberry Pi Zero 2 W, AArch64 Linux",
+  "source_bundle_sha256": "caa8be40b9dcc1ee1bd6e3e0153ca25d2fe49478b0d9c5a00cb35769b6eb0398",
+  "artifact": {
+    "path": "bin/linux-aarch64/cats",
+    "file_type": "ELF 64-bit LSB pie executable, ARM aarch64",
+    "sha256": "57dc579a133ad88f3d62fab31ba06a15697264bd52f3748affe8345957b1e061",
+    "version": "cats 0.4.0 format=0.7 compact_format=0.8 xf=1.0.0 zlib=1.2.13"
+  },
+  "command": "make -j2 test",
+  "result": "passed",
+  "checks": {
+    "cli_integration": 201,
+    "failure_injection": 34,
+    "gui_archive": 8,
+    "transform": "passed",
+    "static_xf_lambdascript_smoke": "passed",
+    "portable_gui_reader": "passed"
+  }
+}

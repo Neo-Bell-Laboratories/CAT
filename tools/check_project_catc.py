@@ -10,9 +10,8 @@ import sys
 import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--cats', '--catc', dest='cats',
-                    default=os.environ.get('CATS', os.environ.get('CATC', 'cats')),
-                    help='installed/shared CLI (default: CATS, legacy CATC, or cats on PATH)')
+parser.add_argument('--cats', '--catc', dest='cats', default=None,
+                    help='shared CATS CLI (default: CATS, then CATC, then cats/catc on PATH)')
 parser.add_argument('--reference-cats', '--reference-catc', dest='reference_cats',
                     default=os.environ.get('CATS_REFERENCE', os.environ.get('CATC_REFERENCE',
                                             str(Path(__file__).resolve().parents[1] / 'bin/cats'))),
@@ -20,8 +19,6 @@ parser.add_argument('--reference-cats', '--reference-catc', dest='reference_cats
 parser.add_argument('--projects-root', type=Path,
                     default=Path(__file__).resolve().parents[2])
 args = parser.parse_args()
-
-projects = ('CAAT', 'CEP', 'CIT', 'CITP', 'CVCS', 'css', 'ssqlite')
 
 def resolve(name, description):
     binary = shutil.which(name)
@@ -41,7 +38,10 @@ def format_versions(version):
     return (default.group(1) if default else None,
             compact.group(1) if compact else None)
 
-binary = resolve(args.cats, 'Shared CATS CLI')
+configured_binary = (args.cats or os.environ.get('CATS') or
+                     os.environ.get('CATC') or shutil.which('cats') or
+                     shutil.which('catc') or 'cats')
+binary = resolve(configured_binary, 'Shared CATS CLI')
 reference = resolve(args.reference_cats, 'Current-source CATS CLI')
 version = get_version(binary)
 reference_version = get_version(reference)
@@ -54,9 +54,16 @@ if shared_formats != reference_formats:
              (shared_formats, reference_formats))
 
 projects_root = args.projects_root.resolve()
-missing = [name for name in projects if not (projects_root / name).is_dir()]
+expected_projects = ('CAT', 'CEP', 'CAAT', 'CITP', 'CVCS', 'ssqlite', 'CIT',
+                     'css', 'kitty litter')
+available = {path.name.casefold(): path.name for path in projects_root.iterdir()
+             if path.is_dir()}
+missing = [name for name in expected_projects
+           if name.casefold() not in available]
 if missing:
-    sys.exit('project directories not found: ' + ', '.join(missing))
+    sys.exit('peer project directories not found under %s: %s' %
+             (projects_root, ', '.join(missing)))
+projects = [available[name.casefold()] for name in expected_projects]
 
 payload = (b'CAT shared CLI interoperability test\x00\xff\r\n' * 1024)
 
@@ -109,4 +116,4 @@ for name in projects:
     print('%s: bidirectional default %s / compact %s compatibility passed (%s <-> current source)' %
           (name, shared_formats[0], shared_formats[1], version))
 
-print('PASS: shared cats interoperates bidirectionally in both framing modes with the current build in all seven peer directories')
+print('PASS: shared cats interoperates bidirectionally in both framing modes with the current build in all %d named peer directories' % len(projects))

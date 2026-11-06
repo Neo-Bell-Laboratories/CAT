@@ -1,0 +1,41 @@
+{
+  "source_files": {
+    "fixture/read me.txt": {
+      "size": 26,
+      "sha256": "3e0b9913726e1a54bfe1173b247e5e7b6a7aed8e7cc8db2851da68d1add6bf3c",
+      "mode": 420
+    },
+    "fixture/payload.bin": {
+      "size": 518,
+      "sha256": "5bbd97fac5f79a9e906a4354c7d0b3ea73663e7978b3c092badacd49f8eb060d",
+      "mode": 420
+    }
+  },
+  "directories": [
+    "fixture",
+    "fixture/empty",
+    "fixture/empty/nested"
+  ],
+  "archives": {
+    "gui-v07.cat": {
+      "version": 7,
+      "gzipped": false,
+      "sha256": "2693a177ff16a47bbff5ebd2cb4a76a3e914d5b85f7f31f25b993e5ab5761557"
+    },
+    "gui-v07.cat.gz": {
+      "version": 7,
+      "gzipped": true,
+      "sha256": "3e4026a6e7c0011159769575222e9beb3840abf7d2fb51532199fe24fa2c2c75"
+    },
+    "gui-v08.cat": {
+      "version": 8,
+      "gzipped": false,
+      "sha256": "4ab9f9f2e4cf24c4134eb10e469a67e9f4174e0707f58795fe2f65d09326c8b0"
+    },
+    "gui-v08.cat.gz": {
+      "version": 8,
+      "gzipped": true,
+      "sha256": "52499b709d0078ce64756600ca0ae9f94a13d9c48fe3bb77275ecdd27a1b4acf"
+    }
+  }
+}

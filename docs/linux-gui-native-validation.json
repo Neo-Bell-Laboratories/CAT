@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-05",
+  "platform": "Linux 6.12.109+rpt-rpi-v8 aarch64",
+  "model": "Raspberry Pi Zero 2 W",
+  "python": "3.11.2",
+  "zlib": "1.2.13",
+  "source_bundle_sha256": "9ee39312deb8f1babccb258ec5845dd9afeba48c99459df78115c25610420eeb",
+  "native_default_build": {
+    "status": "passed",
+    "command": "make -j2 all",
+    "outputs": [
+      "bin/cats",
+      "bin/catc -> cats",
+      "releases/cats-gui-linux.tar.gz"
+    ],
+    "gui_package_sha256": "aa8e2eae0c5a7eefc23e656117f091da8633d5c8cdbc07fcf39903535847aaf6"
+  },
+  "linux_gui_package": {
+    "status": "passed",
+    "macOS_and_Pi_package_sha256_match": true,
+    "installer": "DESTDIR staged install created cats-gui, cat-gui, desktop entry, MIME XML, icons, documentation, and license notices",
+    "runtime": "Portable v0.7/v0.8 plain/gzip reader fixtures passed; Tk smoke test imported from the staged installed GUI directory and inspected/extracted exact fixture bytes under Xvfb"
+  }
+}

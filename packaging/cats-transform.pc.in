@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=${prefix}
+libdir=@cats_libdir@
+includedir=@includedir@
+
+Name: CATS Transform
+Description: CATS aggregate-tree block codec
+Version: 1.0
+Libs: -L${libdir} -lcats-transform -lxf -lls -lm -lpthread
+Cflags: -I${includedir}

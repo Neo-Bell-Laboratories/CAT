@@ -1,6 +1,6 @@
 # CAT archive format v0.8
 
-This document specifies CAT’s compact-frame archive, written by CAT 0.4.0-dev with `-c` or `--compress`. Integers in the
+This document specifies CATS’s compact-frame archive, written by CATS 0.4.0 with `-c` or `--compress`. Integers in the
 archive are unsigned big-endian values. The format stores regular files and
 directories, their relative path bytes, and permission bits 0777. It does not
 store timestamps, ownership, ACLs, extended attributes, symlinks, special files,

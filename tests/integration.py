@@ -98,6 +98,8 @@ with tempfile.TemporaryDirectory(prefix='cat-integration-') as td:
     # A sparse input exercises the byte budget without allocating huge fixtures.
     with (t/'oversize').open('wb') as f: f.truncate(16*1024*1024+1)
     run('encode', '--max-bytes', str(16*1024*1024), t/'oversize', t/'oversize.cat', ok=False)
+    run('encode', '--max-bytes', '64000000000', source/'one', t/'exact-max-budget.cat')
+    run('verify', t/'exact-max-budget.cat')
     run('encode', '--max-bytes', '64000000001', source, t/'raised-limit.cat', code=2)
     over_limit_record = struct.pack('>IBBHIIQQ', 0, 2, 1, 0o600, 4, 0,
                                     64000000001, 0) + hashlib.sha256(b'').digest() + b'huge'
@@ -169,7 +171,7 @@ with tempfile.TemporaryDirectory(prefix='cat-integration-') as td:
         destination = t/(suffix+'-out')
         run(dec, compressed, destination)
         assert snapshot(destination) == expected
-        again = t/(suffix+'-again.cat')
+        again = t/(suffix+'-again.cat.gz')
         run(gz, enc, source, again)
         assert again.read_bytes() == compressed_bytes, 'nondeterministic gzip'
         run(enc, source, compressed, gz, ok=False)
@@ -208,6 +210,20 @@ with tempfile.TemporaryDirectory(prefix='cat-integration-') as td:
     run('-ecg', source, '--output', compact_gzip)
     assert gzip.decompress(compact_gzip.read_bytes()) == compact_bytes
     run('--verify', compact_gzip)
+    compact_auto_name = t/'compact-auto-name'
+    run('-ec', source, '--output', compact_auto_name)
+    assert (t/'compact-auto-name.cat').read_bytes() == compact_bytes
+    assert not compact_auto_name.exists()
+    compact_gzip_auto_name = t/'compact-gzip-auto-name'
+    run('-ecg', source, '--output', compact_gzip_auto_name)
+    assert gzip.decompress((t/'compact-gzip-auto-name.cat.gz').read_bytes()) == compact_bytes
+    assert not compact_gzip_auto_name.exists()
+    compact_suffix_fix = t/'compact-suffix-fix.cat.gz'
+    run('-ec', source, '--output', compact_suffix_fix)
+    assert compact_suffix_fix.with_suffix('').read_bytes() == compact_bytes
+    gzip_suffix_fix = t/'gzip-suffix-fix.cat'
+    run('-ecg', source, '--output', gzip_suffix_fix)
+    assert gzip.decompress(Path(str(gzip_suffix_fix) + '.gz').read_bytes()) == compact_bytes
     compact_gzip_out = t/'compact-gzip-out'
     run('--decode', '--compress', compact_gzip, compact_gzip_out)
     assert snapshot(compact_gzip_out) == expected
@@ -273,7 +289,7 @@ with tempfile.TemporaryDirectory(prefix='cat-integration-') as td:
     p = subprocess.run([binary, '-e', '--gzip', '--', str(source/'one'), '-dash.cat'],
                        cwd=t, capture_output=True)
     assert p.returncode == 0, p.stderr
-    run('-v', t/'-dash.cat')
+    run('-v', t/'-dash.cat.gz')
     # Deterministic structure-aware mutation smoke fuzz: repair top-level hashes.
     rng = random.Random(2026)
     for _ in range(24):

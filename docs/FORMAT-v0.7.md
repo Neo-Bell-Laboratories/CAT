@@ -1,6 +1,6 @@
 # CAT archive format v0.7
 
-This document specifies the archive written by CAT 0.4.0-dev. Integers in the
+This document specifies the archive written by CATS 0.4.0. Integers in the
 archive are unsigned big-endian values. The format stores regular files and
 directories, their relative path bytes, and permission bits 0777. It does not
 store timestamps, ownership, ACLs, extended attributes, symlinks, special files,

@@ -42,7 +42,31 @@ $archiveClass = 'CATArchive'
 $classKey = "HKCU:\Software\Classes\$archiveClass"
 $iconKey = "$classKey\DefaultIcon"
 $openCommandKey = "$classKey\shell\open\command"
-foreach ($extension in @('.cat', '.cat.gz')) {
+Set-Item -Path $classKey -Value 'CATS Archive'
+
+# Remove development-era compound-suffix registrations. Windows resolves
+# .cat.gz through the generic .gz handler, so these entries were ineffective.
+$legacyCatGzipKey = 'HKCU:\Software\Classes\.cat.gz'
+if (Test-Path -LiteralPath $legacyCatGzipKey) {
+    $legacyClass = (Get-Item -LiteralPath $legacyCatGzipKey).GetValue('')
+    if ($legacyClass -eq $archiveClass) {
+        Remove-Item -LiteralPath $legacyCatGzipKey -Recurse -Force
+    }
+}
+foreach ($legacyOpenWithKey in @(
+    'HKCU:\Software\Classes\.gz\OpenWithProgids',
+    'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.gz\OpenWithProgids'
+)) {
+    if (Test-Path -LiteralPath $legacyOpenWithKey) {
+        Remove-ItemProperty -LiteralPath $legacyOpenWithKey -Name $archiveClass `
+            -ErrorAction SilentlyContinue
+    }
+}
+$legacyApplicationKey = 'HKCU:\Software\Classes\Applications\CATSArchive.exe'
+if (Test-Path -LiteralPath $legacyApplicationKey) {
+    Remove-Item -LiteralPath $legacyApplicationKey -Recurse -Force
+}
+foreach ($extension in @('.cat')) {
     $extensionKey = "HKCU:\Software\Classes\$extension"
     New-Item -Force -Path $extensionKey | Out-Null
     Set-Item -Path $extensionKey -Value $archiveClass
@@ -54,6 +78,29 @@ New-Item -Force -Path $openCommandKey | Out-Null
 $guiScript = Join-Path $guiRoot 'cat_gui.py'
 $command = '"{0}" "{1}" "%1"' -f $pythonw, $guiScript
 Set-Item -Path $openCommandKey -Value $command
+$programsDirectory = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+New-Item -ItemType Directory -Force -Path $programsDirectory | Out-Null
+$shortcutPath = Join-Path $programsDirectory 'CATS Archive.lnk'
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = $pythonw
+$shortcut.Arguments = '"{0}"' -f $guiScript
+$shortcut.WorkingDirectory = $guiRoot
+$shortcut.IconLocation = $iconPath
+$shortcut.Save()
+
+# Refresh Explorer's cached file associations after the per-user registry writes.
+if (-not ('CatsShellNotify' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class CatsShellNotify {
+    [DllImport("shell32.dll")]
+    public static extern void SHChangeNotify(uint eventId, uint flags, IntPtr item1, IntPtr item2);
+}
+'@
+}
+[CatsShellNotify]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
 
 Write-Output "Installed CATS GUI to $installRoot"
 Write-Output 'Registered the .cat open command for the current user. If Windows retains another default, choose CATS Archive from Settings > Apps > Default apps.'
