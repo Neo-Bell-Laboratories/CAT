@@ -98,6 +98,30 @@ with tempfile.TemporaryDirectory(prefix='cat-integration-') as td:
     # A sparse input exercises the byte budget without allocating huge fixtures.
     with (t/'oversize').open('wb') as f: f.truncate(16*1024*1024+1)
     run('encode', '--max-bytes', str(16*1024*1024), t/'oversize', t/'oversize.cat', ok=False)
+    run('encode', '--max-bytes', '64000000000', source/'one', t/'exact-max-budget.cat')
+    run('verify', t/'exact-max-budget.cat')
+    run('encode', '--max-bytes', '64000000001', source, t/'raised-limit.cat', code=2)
+    over_limit_record = struct.pack('>IBBHIIQQ', 0, 2, 1, 0o600, 4, 0,
+                                    64000000001, 0) + hashlib.sha256(b'').digest() + b'huge'
+    over_limit_body = (b'CAT\0\x07\0\0\0' + struct.pack('>IIQQ', 1, 0,
+                       len(over_limit_record), 0) + over_limit_record)
+    (t/'over-limit.cat').write_bytes(seal(over_limit_body))
+    run('verify', t/'over-limit.cat', ok=False)
+    many_files = t/'many-files'; many_files.mkdir()
+    for i in range(2001): (many_files/('f%04d' % i)).touch()
+    exact_limit_dir = t/'exact-limit'; exact_limit_dir.mkdir()
+    for i in range(2000): (exact_limit_dir/('f%04d' % i)).touch()
+    run('encode', exact_limit_dir, t/'exact-limit.cat')
+    run('verify', t/'exact-limit.cat')
+    run('encode', many_files, t/'over-file-limit.cat', ok=False)
+    assert not (t/'over-file-limit.cat').exists()
+    saved_version = os.environ.get('CAT_TEST_FORMAT_VERSION')
+    os.environ['CAT_TEST_FORMAT_VERSION'] = '7'
+    too_many_records = archive([('f%04d' % i, 2, 0o600, b'', b'') for i in range(2001)])
+    if saved_version is None: os.environ.pop('CAT_TEST_FORMAT_VERSION', None)
+    else: os.environ['CAT_TEST_FORMAT_VERSION'] = saved_version
+    (t/'over-file-limit.cat').write_bytes(too_many_records)
+    run('verify', t/'over-file-limit.cat', ok=False)
     data = b'\x00\xffa\r\n'
     golden = archive([('golden', 2, 0o640, data, block(data))])
     (t/'golden.cat').write_bytes(golden)
@@ -147,7 +171,7 @@ with tempfile.TemporaryDirectory(prefix='cat-integration-') as td:
         destination = t/(suffix+'-out')
         run(dec, compressed, destination)
         assert snapshot(destination) == expected
-        again = t/(suffix+'-again.cat')
+        again = t/(suffix+'-again.cat.gz')
         run(gz, enc, source, again)
         assert again.read_bytes() == compressed_bytes, 'nondeterministic gzip'
         run(enc, source, compressed, gz, ok=False)
@@ -164,6 +188,73 @@ with tempfile.TemporaryDirectory(prefix='cat-integration-') as td:
     for flags in ['-ed', '-ee', '-dg', '-ig', '-vg', '-ez', '-geZ']:
         run(flags, source, t/'bad-group.cat', code=2)
     assert not (t/'bad-group.cat').exists()
+    # CAT v0.8 uses two-byte block lengths when -c is selected. The archive
+    # header identifies the frame width; decoding explicitly applies -c after
+    # the loader has removed an optional gzip wrapper.
+    compact = t/'compact.cat'
+    run('-ec', source, '-o', compact)
+    compact_bytes = compact.read_bytes()
+    assert compact_bytes[:8] == b'CAT\0\x08\0\0\0'
+    expected_blocks = sum((len(data) + 8191) // 8192 for data in fixtures.values())
+    assert len(encoded) - len(compact_bytes) == 4 * expected_blocks
+    run('-v', compact)
+    run('-i', compact)
+    no_compact = t/'compact-without-flag'
+    run('-d', compact, no_compact, ok=False)
+    assert not no_compact.exists()
+    compact_out = t/'compact-out'
+    run('-dc', compact, compact_out)
+    assert snapshot(compact_out) == expected
+
+    compact_gzip = t/'compact.cat.gz'
+    run('-ecg', source, '--output', compact_gzip)
+    assert gzip.decompress(compact_gzip.read_bytes()) == compact_bytes
+    run('--verify', compact_gzip)
+    compact_auto_name = t/'compact-auto-name'
+    run('-ec', source, '--output', compact_auto_name)
+    assert (t/'compact-auto-name.cat').read_bytes() == compact_bytes
+    assert not compact_auto_name.exists()
+    compact_gzip_auto_name = t/'compact-gzip-auto-name'
+    run('-ecg', source, '--output', compact_gzip_auto_name)
+    assert gzip.decompress((t/'compact-gzip-auto-name.cat.gz').read_bytes()) == compact_bytes
+    assert not compact_gzip_auto_name.exists()
+    compact_suffix_fix = t/'compact-suffix-fix.cat.gz'
+    run('-ec', source, '--output', compact_suffix_fix)
+    assert compact_suffix_fix.with_suffix('').read_bytes() == compact_bytes
+    gzip_suffix_fix = t/'gzip-suffix-fix.cat'
+    run('-ecg', source, '--output', gzip_suffix_fix)
+    assert gzip.decompress(Path(str(gzip_suffix_fix) + '.gz').read_bytes()) == compact_bytes
+    compact_gzip_out = t/'compact-gzip-out'
+    run('--decode', '--compress', compact_gzip, compact_gzip_out)
+    assert snapshot(compact_gzip_out) == expected
+
+    compact_long = t/'compact-long.cat'
+    run('--encode', '--compress', source, '--output', compact_long)
+    assert compact_long.read_bytes() == compact_bytes
+    compact_long_out = t/'compact-long-out'
+    run('--decode', '--compress', compact_long, compact_long_out)
+    assert snapshot(compact_long_out) == expected
+    run('-dc', t/'a.cat', t/'wrong-frame-width', ok=False)
+    assert not (t/'wrong-frame-width').exists()
+    compact_single = t/'compact-single.cat'
+    run('-ec', source/'one', '-o', compact_single)
+    compact_single_bytes = compact_single.read_bytes()
+    payload_offset = 32 + struct.unpack('>Q', compact_single_bytes[16:24])[0]
+    for index, offset, bad_bytes in [
+        (0, payload_offset + 1, b'\x00\x02'),
+        (1, payload_offset + 3, b'\x00\x00'),
+    ]:
+        malformed = bytearray(compact_single_bytes)
+        malformed[offset:offset + 2] = bad_bytes
+        malformed[-32:] = hashlib.sha256(malformed[:-32]).digest()
+        malformed_path = t/f'compact-malformed-{index}.cat'
+        malformed_path.write_bytes(malformed)
+        run('-v', malformed_path, ok=False)
+        malformed_output = t/f'compact-malformed-{index}-out'
+        run('-dc', malformed_path, malformed_output, ok=False)
+        assert not malformed_output.exists()
+    run('-ec', source, '-v', t/'bad-option.cat', code=2)
+    assert not (t/'bad-option.cat').exists()
     run('-d', '--no-permissions', t/'a.cat', t/'content-only')
     assert (t/'content-only'/'source'/'one').read_bytes() == b'\xff'
     assert (t/'content-only'/'source'/'one').stat().st_mode & 0o777 == 0o600
@@ -198,7 +289,7 @@ with tempfile.TemporaryDirectory(prefix='cat-integration-') as td:
     p = subprocess.run([binary, '-e', '--gzip', '--', str(source/'one'), '-dash.cat'],
                        cwd=t, capture_output=True)
     assert p.returncode == 0, p.stderr
-    run('-v', t/'-dash.cat')
+    run('-v', t/'-dash.cat.gz')
     # Deterministic structure-aware mutation smoke fuzz: repair top-level hashes.
     rng = random.Random(2026)
     for _ in range(24):

@@ -2,14 +2,20 @@
 #ifdef __APPLE__
 #define _DARWIN_C_SOURCE
 #endif
-#include "io.h"
+#include "cat_io.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include "win_fs.h"
+#else
+#define CAT_TEMP_TEMPLATE "XXXXXX"
+#endif
 
 volatile sig_atomic_t cat_cancelled;
 uint64_t cat_temp_limit = UINT64_C(192) * 1024 * 1024 * 1024;
@@ -39,12 +45,17 @@ int cat_io_init(int install_signals) {
     }
     if (!install_signals)
         return 0;
+#ifdef _WIN32
+    if (signal(SIGINT, cancel_handler) == SIG_ERR || signal(SIGTERM, cancel_handler) == SIG_ERR)
+        return cat_fail("install signal handler");
+#else
     struct sigaction action;
     memset(&action, 0, sizeof(action));
     action.sa_handler = cancel_handler;
     sigemptyset(&action.sa_mask);
     if (sigaction(SIGINT, &action, NULL) || sigaction(SIGTERM, &action, NULL))
         return cat_syserr("install signal handler");
+#endif
     return 0;
 }
 cat_spool *cat_spool_new(void) {
@@ -58,15 +69,35 @@ cat_spool *cat_spool_new(void) {
         return NULL;
     }
     const char *directory = getenv("TMPDIR");
+#ifdef _WIN32
+    char windows_temp[4096];
+    if (!directory || !*directory) {
+        if (cat_win_temp_directory(windows_temp, sizeof(windows_temp))) {
+            cat_syserr("locate temporary directory");
+            return NULL;
+        }
+        directory = windows_temp;
+    }
+    size_t directory_length = strlen(directory);
+    int has_separator = directory_length &&
+        (directory[directory_length - 1] == '/' || directory[directory_length - 1] == '\\');
+    size_t length = directory_length + 36;
+#else
     if (!directory || !*directory)
         directory = "/tmp";
     size_t length = strlen(directory) + 24;
+#endif
     char *name = malloc(length);
     if (!name) {
         cat_fail("out of memory");
         return NULL;
     }
-    snprintf(name, length, "%s/catc-spool.XXXXXX", directory);
+#ifdef _WIN32
+    snprintf(name, length, "%s%scatc-spool.%s", directory, has_separator ? "" : "\\",
+             CAT_WIN_TEMP_TEMPLATE);
+#else
+    snprintf(name, length, "%s/catc-spool.%s", directory, CAT_TEMP_TEMPLATE);
+#endif
     int fd = mkstemp(name);
     if (fd < 0) {
         free(name);
@@ -82,11 +113,13 @@ cat_spool *cat_spool_new(void) {
         return NULL;
     }
     free(name);
+#ifndef _WIN32
     if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0) {
         close(fd);
         cat_syserr("protect spool descriptor");
         return NULL;
     }
+#endif
     spools[slot] = (cat_spool){fd, 0};
     return &spools[slot];
 }

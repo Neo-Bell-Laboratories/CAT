@@ -1,0 +1,64 @@
+name: CAT validation
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-24.04, mode: release}
+          - {os: ubuntu-24.04, mode: asan}
+          - {os: ubuntu-24.04, mode: lsan}
+          - {os: ubuntu-24.04, mode: tsan}
+          - {os: ubuntu-24.04-arm, mode: release}
+          - {os: macos-15, mode: release}
+          - {os: macos-15, mode: asan}
+          - {os: macos-15, mode: tsan}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      ASAN_OPTIONS: quarantine_size_mb=16:thread_local_quarantine_size_kb=256
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: CAT
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: NBL-XF/XF
+          ref: 4549547e8a1f408d62e39d1ced6f36ea823a0c72
+          path: XF
+          persist-credentials: false
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev python3
+      - name: Test
+        run: make -C CAT -j2 CC=clang MODE=${{ matrix.mode }} test
+      - name: Streaming and package checks
+        if: matrix.mode == 'release'
+        run: |
+          make -C CAT CC=clang streaming-test
+          make -C CAT CC=clang package source-package
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: CAT
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: NBL-XF/XF
+          ref: 4549547e8a1f408d62e39d1ced6f36ea823a0c72
+          path: XF
+          persist-credentials: false
+      - name: Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev python3
+      - run: make -C CAT -j2 FUZZ_CC=clang fuzz FUZZ_SECONDS=60

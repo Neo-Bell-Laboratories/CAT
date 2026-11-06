@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-05",
+  "artifact": {
+    "path": "bin/linux-x64/cats",
+    "file_type": "ELF 64-bit LSB executable, x86-64, dynamically linked, glibc 2.17 baseline",
+    "sha256": "3696508e695842bbb6633f70878211ba00799cb45edc697edd98abe83f1766a2",
+    "build": "Current-source cross-build with x86_64-unknown-linux-gnu-gcc, matching ar, and static zlib 1.4; fresh build tree build/linux-x64-current."
+  },
+  "runtime_validation": {
+    "host": "alienware",
+    "os": "Ubuntu 26.04.1 LTS x86_64",
+    "method": "Copied this exact artifact and tests/integration.py plus tests/golden to a temporary directory on the host, then executed the harness against the copied binary.",
+    "result": "passed",
+    "checks": 201,
+    "coverage": "Exact bytes/modes, deterministic archives, independent SHA/golden archive, corruption/path rejection, gzip interoperability/bounds, CLI aliases, compact framing, file/byte limits, and output suffix selection."
+  },
+  "additional_runtime_validations": [
+    {
+      "date": "2026-11-05",
+      "host": "nbl-server QEMU guest via kensei@alienware",
+      "os": "Debian GNU/Linux 13 (trixie) x86_64",
+      "artifact_sha256": "3696508e695842bbb6633f70878211ba00799cb45edc697edd98abe83f1766a2",
+      "method": "Copied this exact artifact and tests/integration.py to /tmp/cats-debian-validation-20261105 on the guest, then executed the harness against the copied binary.",
+      "result": "passed",
+      "checks": 201,
+      "coverage": "Exact bytes/modes, deterministic archives, independent SHA/golden archive, corruption/path rejection, gzip interoperability/bounds, CLI aliases, compact framing, file/byte limits, and output suffix selection."
+    }
+  ],
+  "gui_reader_validation": {
+    "date": "2026-11-05",
+    "host": "nbl-server QEMU guest via kensei@alienware",
+    "os": "Debian GNU/Linux 13 (trixie) x86_64",
+    "result": "portable_reader_and_Tk_runtime_passed",
+    "evidence": "docs/debian-gui-validation.json records tests/gui_archive_portable.py and tests/gui_fixture_smoke.py passing on the Debian guest under Xvfb."
+  }
+}

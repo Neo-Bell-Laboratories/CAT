@@ -1,0 +1,22 @@
+{
+  "time_utc": "2026-11-05T19:57:53.730588+00:00",
+  "remote_directory": ".cache/catc-validation/run-1793908673730586000",
+  "results": {
+    "release": {
+      "exit_code": 0,
+      "log": "build/remote-release.log"
+    },
+    "asan": {
+      "exit_code": 0,
+      "log": "build/remote-asan.log"
+    },
+    "lsan": {
+      "exit_code": 0,
+      "log": "build/remote-lsan.log"
+    },
+    "tsan": {
+      "exit_code": 0,
+      "log": "build/remote-tsan.log"
+    }
+  }
+}

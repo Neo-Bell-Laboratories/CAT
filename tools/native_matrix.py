@@ -59,7 +59,7 @@ for mode in modes:
     target='leak-test' if mode=='lsan' else 'test'
     log=build/('native-'+mode+'.log');started=time.monotonic()
     code=run(['make',f'-j{args.jobs}','CC='+args.cc,'MODE='+mode,'BUILD=build/gcc-'+mode,
-              'BIN=bin/gcc-'+mode+'/catc',target],log,env)
+              'BIN=bin/gcc-'+mode+'/cats',target],log,env)
     result['modes'][mode]={'status':'passed' if code==0 else 'failed','exit_code':code,'seconds':round(time.monotonic()-started,3),'target':target,'log':log.name}
     save();print(mode,result['modes'][mode],flush=True);print(log.read_text(errors='replace')[-3500:],flush=True)
 print('Native report:',report,flush=True)

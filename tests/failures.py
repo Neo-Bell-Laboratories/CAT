@@ -52,7 +52,7 @@ def no_stages(root):
 with tempfile.TemporaryDirectory(prefix='cat-failures-') as td:
     t=Path(td);source=t/'source';source.mkdir()
     (source/'data').write_bytes(b'archive content\x00\xff'*500)
-    archive=t/'good.cat'
+    archive=t/'good.cat.gz'
     run('-eg',source,archive,expected=0)
     for limits in [('--max-bytes','1'),('--max-archive-bytes','16'),('--max-temp-bytes','1')]:
         run('-eg',*limits,source,t/'limited.cat');assert not (t/'limited.cat').exists();no_stages(t)

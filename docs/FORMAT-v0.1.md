@@ -132,8 +132,8 @@ of CAT/XF's sanitizer rebuild. Runtime does not invoke the gzip command.
 
 ## Resource and extraction rules
 
-Default byte budgets: 64 GiB total original bytes, 64 GiB stored archive, 64 GiB
-inflated archive, and 192 GiB live logical temporary bytes. CLI options
+Default byte budgets: 64 GB (64,000,000,000 bytes) total original input, 64 GiB
+stored archive, 64 GiB inflated archive, and 192 GiB live logical temporary bytes. CLI options
 `--max-bytes`, `--max-archive-bytes`, and `--max-temp-bytes` override these with
 positive decimal byte counts. Limits are not preallocations. Source inode and
 archive offsets use 64-bit file APIs. Archive inputs must be regular files;

@@ -1,32 +1,33 @@
 {
+  "code_sha256": "ce3a25519c897d13f7b621a40b125677b7b18b717e8417e1f9e7d632bce259c4",
   "archive": {
     "status": "passed",
-    "seconds": 121,
+    "seconds": 61,
     "stats": {
-      "number_of_executed_units": 134994,
-      "average_exec_per_sec": 1115,
-      "new_units_added": 11,
+      "number_of_executed_units": 68084,
+      "average_exec_per_sec": 1116,
+      "new_units_added": 251,
       "slowest_unit_time_sec": 0,
-      "peak_rss_mb": 111
+      "peak_rss_mb": 123
     },
-    "command": "libFuzzer + ASan/UBSan; 32 MiB quarantine; 512 MiB RSS cap",
-    "log": "build/fuzz-llvm/fuzz-artifacts/archive-fuzz-fcguu_tb/run.log"
+    "command": "make -C CAT -j2 FUZZ_BUILD=/private/tmp/cat-ci-local2/fuzz FUZZ_SECONDS=60 fuzz (libFuzzer + ASan/UBSan)",
+    "log": "docs/test-logs/archive-fuzz-macos.log"
   },
   "tree": {
     "status": "passed",
-    "seconds": 121,
+    "seconds": 61,
     "stats": {
-      "number_of_executed_units": 2096687,
-      "average_exec_per_sec": 17327,
-      "new_units_added": 18,
+      "number_of_executed_units": 125260,
+      "average_exec_per_sec": 2053,
+      "new_units_added": 149,
       "slowest_unit_time_sec": 0,
-      "peak_rss_mb": 145
+      "peak_rss_mb": 102
     },
-    "command": "libFuzzer + ASan/UBSan; 32 MiB quarantine; 512 MiB RSS cap",
-    "log": "build/fuzz-llvm/fuzz-artifacts/tree-fuzz-zmh52r6c/run.log"
+    "command": "make -C CAT -j2 FUZZ_BUILD=/private/tmp/cat-ci-local2/fuzz FUZZ_SECONDS=60 fuzz (libFuzzer + ASan/UBSan)",
+    "log": "docs/test-logs/tree-fuzz-macos.log"
   },
   "earlier_rss_event": {
     "status": "investigated",
-    "detail": "Tree campaign hit the initial 512 MiB RSS cap with default ASan quarantine. Saved valid input survived 1000 replays with reduced quarantine; final campaign peaked at 145 MiB. Native LSan is a separate required check."
+    "detail": "Prior tree campaign reached the initial 512 MiB RSS cap with default ASan quarantine; saved valid input survived 1000 replays with reduced quarantine. The current campaign peaked at 102 MiB. Native LSan remains separately validated."
   }
 }

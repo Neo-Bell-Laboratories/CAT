@@ -1,8 +1,13 @@
 {
   "status": "passed",
-  "mode": "receive",
+  "mode": "Pi-generated archive received on Mac",
   "platform": "Darwin-arm64",
-  "version": "catc 0.2.0-dev format=0.1 xf=1.0.0 zlib=1.2.12",
-  "raw_archive_byte_identical_to_v01": true,
-  "restored_bytes_modes_and_sha256_match": true
+  "format_version": "0.7",
+  "raw_archive_byte_identical_across_macos_linux": true,
+  "gzip_archive_byte_identical_across_macos_linux": true,
+  "restored_bytes_modes_and_sha256_match": true,
+  "raw_archive_sha256": "8b78b6ac6e881dbabd6ae396d8ab822d89fe5ba0f9e30e2dd544d0e04ef54f01",
+  "gzip_archive_sha256": "0cac6bbc651a492efd5086a98cdaed78477c669c5ef1f2e58c5b197676295cda",
+  "mac_version": "catc 0.4.0-dev format=0.7 xf=1.0.0 zlib=1.2.12",
+  "pi_version": "catc 0.4.0-dev format=0.7 xf=1.0.0 zlib=1.2.13"
 }

@@ -1,0 +1,10 @@
+{
+  "time_utc": "2026-11-06T01:42:21.394182+00:00",
+  "remote_directory": ".cache/catc-validation/run-1793929341394181000",
+  "results": {
+    "release": {
+      "exit_code": 0,
+      "log": "build/remote-release.log"
+    }
+  }
+}

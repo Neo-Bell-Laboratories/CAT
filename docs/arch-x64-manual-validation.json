@@ -1,0 +1,14 @@
+{
+  "date": "2026-11-06",
+  "host": "NBL QEMU Arch Linux x86_64 guest",
+  "tool_version": "0.4.0-dev",
+  "artifact": {
+    "name": "CATS Linux x86_64",
+    "sha256": "3696508e695842bbb6633f70878211ba00799cb45edc697edd98abe83f1766a2",
+    "hash_verified_on_guest": true
+  },
+  "method": "Downloaded the staged release binary and integration harness into a temporary guest directory, verified the binary SHA-256, then ran tests/integration.py against the binary.",
+  "result": "passed",
+  "checks": 281,
+  "reported_by": "user"
+}

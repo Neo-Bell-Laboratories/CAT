@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-06",
+  "tool_version": "0.4.0",
+  "artifact": {
+    "path": "bin/linux-x64/cats",
+    "file_type": "ELF 64-bit LSB executable, x86-64, glibc 2.17 baseline",
+    "sha256": "f284e6aa615c149ffec5fafe8978872796d888c1b53d1ae46ee187650eeead01"
+  },
+  "build": "Current-source cross-build using Homebrew x86_64-unknown-linux-gnu-gcc, matching ar, and static zlib 1.4.",
+  "runtime_validation": {
+    "host": "Alienware Ubuntu x86_64",
+    "sha256_verified_on_host": true,
+    "version": "cats 0.4.0 format=0.7 compact_format=0.8 xf=1.0.0 zlib=1.4",
+    "command": "CAT_TEST_FORMAT_VERSION=6 python3 integration.py ./cats",
+    "result": "passed",
+    "checks": 201,
+    "coverage": "Exact file bytes and modes, deterministic output, golden archive compatibility, corruption and path rejection, gzip interoperability and bounds, CLI aliases, compact framing, and input limits."
+  }
+}

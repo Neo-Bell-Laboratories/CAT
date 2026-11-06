@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-05",
+  "host": "nbl-server QEMU guest via kensei@alienware, forwarded SSH port 2239",
+  "os": "Debian GNU/Linux 13 (trixie) x86_64",
+  "python": "3.13",
+  "runtime_dependencies": {
+    "python3-tk": "installed",
+    "xvfb": "installed"
+  },
+  "portable_reader": {
+    "status": "passed",
+    "command": "python3 tests/gui_archive_portable.py",
+    "result": "v0.7/v0.8 plain and gzip fixtures verified for archive version, framing, paths, exact bytes, SHA-256, and supported modes"
+  },
+  "tk_gui": {
+    "status": "passed",
+    "command": "DISPLAY=:99 python3 tests/gui_fixture_smoke.py (Xvfb 1024x768x24)",
+    "result": "GUI inspected the v0.7 gzip fixture, enabled extraction, and restored fixture files with exact sizes, SHA-256 hashes, modes, and empty directories"
+  },
+  "cleanup": "Temporary validation files and Xvfb process were removed after the checks."
+}

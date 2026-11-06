@@ -14,11 +14,11 @@ import tarfile
 parser=argparse.ArgumentParser()
 parser.add_argument('kind',choices=['source','binary'])
 parser.add_argument('--output',required=True)
-parser.add_argument('--binary',default='bin/catc')
+parser.add_argument('--binary',default='bin/cats')
 args=parser.parse_args()
 cat=Path(__file__).resolve().parent.parent;workspace=cat.parent
 version=re.search(r'#define CAT_VERSION "([^"]+)"',(cat/'src/catc.c').read_text()).group(1)
-root=f'catc-{version}'
+root=f'cats-{version}'
 epoch=int(os.environ.get('SOURCE_DATE_EPOCH','0'))
 files={}
 def collect(path):
@@ -29,7 +29,7 @@ def collect(path):
             collect(child)
     elif path.is_file():files[str(path.relative_to(workspace))]=path.read_bytes()
 if args.kind=='source':
-    for name in ['src','lib','tests','tools','docs','Makefile','README.md','LICENSE','THIRD_PARTY.md','licenses']:
+    for name in ['src','include','lib','gui','tests','tools','docs','packaging','Makefile','README.md','LICENSE','THIRD_PARTY.md','licenses']:
         collect(cat/name)
     for name in ['src','include','public','lib/api.c','lib/api.h','lib/driver.c','lib/driver.h',
                  'vendor/lambdaScript/src','vendor/lambdaScript/include']:
@@ -40,14 +40,15 @@ if args.kind=='source':
         if path.exists():collect(path)
 else:
     binary=Path(args.binary).resolve()
+    files['bin/cats']=binary.read_bytes()
     files['bin/catc']=binary.read_bytes()
     for name in ['LICENSE','THIRD_PARTY.md']:files[name]=(cat/name).read_bytes()
     files['README.md']=(
-        '# catc development binary bundle\n\n'
+        '# CATS development binary bundle\n\n'
         'Platform: '+platform.system()+' '+platform.machine()+'\n\n'
         'No compilation is needed for this bundle. From this directory:\n\n'
-        '```sh\n./bin/catc --version\n./bin/catc -eg INPUT OUTPUT.cat.gz\n'
-        './bin/catc -d OUTPUT.cat.gz NEW_OUTPUT_DIRECTORY\n```\n\n'
+        '```sh\n./bin/cats --version\n./bin/cats -eg INPUT OUTPUT.cat.gz\n'
+        './bin/cats -d OUTPUT.cat.gz NEW_OUTPUT_DIRECTORY\n```\n\n'
         'The binary requires compatible system libc/math/pthreads/zlib libraries; '
         'BUILD-MANIFEST.json records dependencies and file hashes.\n\n'
         'See docs/PROJECT.md for the preservation contract, limits and source build '
@@ -58,7 +59,8 @@ else:
     for path in (cat/'docs').iterdir():
         if path.is_file() and not path.name.startswith('._') and path.suffix in ['.md','.json']:files['docs/'+path.name]=path.read_bytes()
 metadata={
-    'version':version,'kind':args.kind,'status':'development-validation; production release requires completed release gates',
+    'version':version,'kind':args.kind,
+    'status':'production-release' if not version.endswith('-dev') else 'development-validation',
     'platform':platform.system()+'-'+platform.machine() if args.kind=='binary' else 'portable-source',
     'format':'0.1','source_date_epoch':epoch,'build_os_release':platform.release(),
     'license_review':{'CAT':'MIT','XF':'MIT first-party; project-owner confirmation recorded' if (workspace/'XF/LICENSE').exists() else 'missing license/provenance confirmation',
@@ -68,7 +70,7 @@ metadata={
 if args.kind=='binary':
     metadata['runtime_version']=subprocess.check_output([str(binary),'--version'],text=True).strip()
     command=['otool','-L',str(binary)] if platform.system()=='Darwin' else ['ldd',str(binary)]
-    metadata['runtime_dependencies']=subprocess.check_output(command,text=True).replace(str(binary),'bin/catc')
+    metadata['runtime_dependencies']=subprocess.check_output(command,text=True).replace(str(binary),'bin/cats')
 files['BUILD-MANIFEST.json']=(json.dumps(metadata,indent=2,sort_keys=True)+'\n').encode()
 output=Path(args.output);output.parent.mkdir(parents=True,exist_ok=True)
 temp=output.with_name(output.name+'.tmp')
@@ -76,7 +78,7 @@ try:
     with temp.open('wb') as f,gzip.GzipFile(fileobj=f,mode='wb',filename='',mtime=epoch) as gz,tarfile.open(fileobj=gz,mode='w',format=tarfile.USTAR_FORMAT) as tar:
         for name,data in sorted(files.items()):
             info=tarfile.TarInfo(root+'/'+name);info.size=len(data);info.mtime=epoch
-            info.mode=0o755 if name=='bin/catc' else 0o644
+            info.mode=0o755 if name in ('bin/cats','bin/catc') else 0o644
             tar.addfile(info,io.BytesIO(data))
     os.replace(temp,output)
 finally:

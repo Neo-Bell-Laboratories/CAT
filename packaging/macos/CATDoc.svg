@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect x="24" y="24" width="976" height="976" rx="224" fill="#18304d"/>
+  <ellipse cx="518" cy="850" rx="352" ry="58" fill="#081522" opacity=".5"/>
+
+  <!-- Cat peeking over the back of the folder -->
+  <path d="M260 470 286 218Q291 164 338 197l112 82q60-17 122 0l112-82q47-33 52 21l26 252z"
+        fill="#db783e" stroke="#14283e" stroke-width="22" stroke-linejoin="round"/>
+  <path d="m310 263 22 131 112-72m268-59-22 131-112-72" fill="#bd5d3c" opacity=".72"/>
+  <path d="M296 439q0-161 216-161t216 161v132H296z" fill="#db783e" stroke="#14283e" stroke-width="22"/>
+  <ellipse cx="423" cy="414" rx="24" ry="38" fill="#173047"/>
+  <ellipse cx="601" cy="414" rx="24" ry="38" fill="#173047"/>
+  <circle cx="431" cy="402" r="8" fill="#fff4df"/>
+  <circle cx="609" cy="402" r="8" fill="#fff4df"/>
+  <path d="M472 478q40-32 80 0l-40 39z" fill="#a94e54"/>
+  <path d="M512 514v22m0 0q-20 21-42 0m42 0q20 21 42 0" fill="none" stroke="#173047" stroke-width="12" stroke-linecap="round"/>
+  <path d="M448 495 350 480m102 31-104 5m278-21 98-15m-102 31 104 5" fill="none" stroke="#fff0dc" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Folder back and tab -->
+  <path d="M133 510q0-42 42-42h245l76 72h351q43 0 43 43v261q0 48-48 48H181q-48 0-48-48z"
+        fill="#f29a46" stroke="#14283e" stroke-width="24" stroke-linejoin="round"/>
+  <!-- Folder front -->
+  <path d="M126 588q0-42 43-42h690q43 0 43 43v267q0 45-45 45H171q-45 0-45-45z"
+        fill="#ffd080" stroke="#14283e" stroke-width="24" stroke-linejoin="round"/>
+  <path d="M166 614h655" stroke="#fff0c4" stroke-width="13" stroke-linecap="round" opacity=".9"/>
+
+  <!-- Paws curled over the folder's top edge -->
+  <path d="M354 530q-12-44 24-61 28-13 53 11l34 41q19 24 2 46-18 24-43 4l-23-19q-27 16-43-3-8-9-4-19z"
+        fill="#db783e" stroke="#14283e" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M670 530q12-44-24-61-28-13-53 11l-34 41q-19 24-2 46 18 24 43 4l23-19q27 16 43-3 8-9 4-19z"
+        fill="#db783e" stroke="#14283e" stroke-width="18" stroke-linejoin="round"/>
+  <path d="m394 549 16 15m219-15-16 15" stroke="#bd5d3c" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Oversized zipper makes the folder read as a compressed archive -->
+  <path d="M512 650v207" stroke="#7e3d2b" stroke-width="22" stroke-linecap="round"/>
+  <path d="M512 660v185" stroke="#fff0cf" stroke-width="8" stroke-linecap="round"/>
+  <g fill="#fff0cf">
+    <path d="M474 670h27v13h-27zm49 25h27v13h-27zm-49 25h27v13h-27zm49 25h27v13h-27zm-49 25h27v13h-27zm49 25h27v13h-27z"/>
+  </g>
+  <rect x="492" y="728" width="40" height="65" rx="15" fill="#173047" stroke="#fff0cf" stroke-width="8"/>
+  <path d="M512 793v24" stroke="#fff0cf" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="512" cy="834" r="18" fill="none" stroke="#fff0cf" stroke-width="12"/>
+</svg>

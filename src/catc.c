@@ -5,51 +5,73 @@
 #define _GNU_SOURCE
 #endif
 #include "gzip.h"
-#include "io.h"
+#include "cat_io.h"
 #include "sha256.h"
-#include "transform.h"
+#include <cats/transform.h>
 #include "xf.h"
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <fnmatch.h>
 #include <dirent.h>
+#endif
 #include <errno.h>
 #include <fcntl.h>
-#include <fnmatch.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
 #include <sys/resource.h>
+#endif
 #include <sys/stat.h>
 #include <zlib.h>
 #ifdef __APPLE__
 #include <sys/stdio.h>
-#else
+#elif defined(__linux__)
 #include <sys/syscall.h>
 #endif
 #include <time.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include "win_fs.h"
+#endif
 
-#define CAT_VERSION "0.2.0-dev"
+#define CAT_VERSION "0.4.0"
 #define MAX_ENTRIES 4096u
+#define MAX_FILES 2000u
+#define MAX_TOTAL_FILE_BYTES (UINT64_C(64) * 1000 * 1000 * 1000)
 #define MAX_DEPTH 64u
 #define MAX_PATH_BYTES 4096u
 #define MAX_EXCLUDES 64u
 #define MAX_MANIFEST (2u * 1024u * 1024u)
 #define HEADER 32u
 #define RECORD 64u
-static const uint8_t magic[8] = {'C', 'A', 'T', 0, 6, 0, 0, 0};
+#ifdef _WIN32
+#define CAT_TEMP_TEMPLATE CAT_WIN_TEMP_TEMPLATE
+#define CAT_TEMP_EXTRA 32u
+#else
+#define CAT_TEMP_TEMPLATE "XXXXXX"
+#define CAT_TEMP_EXTRA 16u
+#endif
+static const uint8_t magic[8] = {'C', 'A', 'T', 0, 7, 0, 0, 0};
+static const uint8_t magic_v07[8] = {'C', 'A', 'T', 0, 7, 0, 0, 0};
+static const uint8_t magic_v08[8] = {'C', 'A', 'T', 0, 8, 0, 0, 0};
+static unsigned frame_length_width = 4;
 static const uint8_t magic_v06[8] = {'C', 'A', 'T', 0, 6, 0, 0, 0};
 static const uint8_t magic_v02[8] = {'C', 'A', 'T', 0, 2, 0, 0, 0};
 static const uint8_t magic_v03[8] = {'C', 'A', 'T', 0, 3, 0, 0, 0};
 static const uint8_t magic_v04[8] = {'C', 'A', 'T', 0, 4, 0, 0, 0};
 static const uint8_t magic_v05[8] = {'C', 'A', 'T', 0, 5, 0, 0, 0};
 static const uint8_t magic_v01[8] = {'C', 'A', 'T', 0, 1, 0, 0, 0};
-static uint64_t archive_block_max = CAT_BLOCK_MAX;
-static uint64_t max_bytes = UINT64_C(64) * 1024 * 1024 * 1024;
+static uint64_t archive_block_max = CATS_BLOCK_MAX;
+static uint64_t max_bytes = MAX_TOTAL_FILE_BYTES;
 static uint64_t max_archive = UINT64_C(64) * 1024 * 1024 * 1024;
 static int require_atomic;
 static int restore_permissions = 1;
 static char *exclude_patterns[MAX_EXCLUDES];
 static size_t exclude_count;
+static size_t excluded_path_count;
 static char *source_root_name;
 static size_t source_root_length;
 typedef struct {
@@ -59,7 +81,7 @@ typedef struct {
     uint8_t hash[32];
 } Entry;
 static Entry entries[MAX_ENTRIES];
-static size_t count, manifest_size;
+static size_t count, file_count, manifest_size;
 static uint64_t total, tree_blocks, raw_blocks;
 static void be(uint8_t *p, uint64_t n, unsigned width) {
     for (unsigned i = 0; i < width; i++)
@@ -75,7 +97,7 @@ static void clear_entries(void) {
     for (size_t i = 0; i < count; i++)
         free(entries[i].path);
     memset(entries, 0, sizeof(entries));
-    count = manifest_size = 0;
+    count = file_count = manifest_size = 0;
     total = tree_blocks = raw_blocks = 0;
     free(source_root_name);
     source_root_name = NULL;
@@ -91,6 +113,18 @@ static int safe_path(const char *p) {
         if (!n || (n == 1 && p[0] == '.') || (n == 2 && p[0] == '.' && p[1] == '.') ||
             ++depth > MAX_DEPTH)
             return 0;
+#ifdef _WIN32
+        if (memchr(p, ':', n) || memchr(p, '\\', n) || p[n - 1] == '.' || p[n - 1] == ' ')
+            return 0;
+        size_t stem = 0;
+        while (stem < n && p[stem] != '.')
+            stem++;
+        if ((stem == 3 && (!_strnicmp(p, "CON", 3) || !_strnicmp(p, "PRN", 3) ||
+                           !_strnicmp(p, "AUX", 3) || !_strnicmp(p, "NUL", 3))) ||
+            (stem == 4 && (!_strnicmp(p, "COM", 3) || !_strnicmp(p, "LPT", 3)) &&
+             p[3] >= '1' && p[3] <= '9'))
+            return 0;
+#endif
         if (!slash)
             break;
         p = slash + 1;
@@ -98,6 +132,14 @@ static int safe_path(const char *p) {
             return 0;
     }
     return 1;
+}
+static char *cat_strndup(const char *source, size_t length) {
+    char *copy = malloc(length + 1);
+    if (!copy)
+        return NULL;
+    memcpy(copy, source, length);
+    copy[length] = 0;
+    return copy;
 }
 static int add_exclude_pattern(const char *pattern) {
     if (!pattern || !*pattern || pattern[0] == '/' || exclude_count == MAX_EXCLUDES ||
@@ -108,7 +150,7 @@ static int add_exclude_pattern(const char *pattern) {
         length--;
     if (!length)
         return -1;
-    char *copy = strndup(pattern, length);
+    char *copy = cat_strndup(pattern, length);
     if (!copy)
         return -1;
     exclude_patterns[exclude_count++] = copy;
@@ -119,6 +161,71 @@ static void clear_exclude_patterns(void) {
         free(exclude_patterns[i]);
     exclude_count = 0;
 }
+#ifdef _WIN32
+static int path_pattern_match(const char *pattern, const char *path) {
+    while (*pattern) {
+        if (*pattern == '*') {
+            while (*pattern == '*')
+                pattern++;
+            if (!*pattern)
+                return !strchr(path, '/');
+            for (const char *p = path;; p++) {
+                if (path_pattern_match(pattern, p))
+                    return 1;
+                if (!*p || *p == '/')
+                    break;
+            }
+            return 0;
+        }
+        if (*pattern == '?') {
+            if (!*path || *path == '/')
+                return 0;
+            pattern++;
+            path++;
+            continue;
+        }
+        if (*pattern == '[') {
+            const char *p = pattern + 1;
+            int negate = *p == '!' || *p == '^';
+            if (negate)
+                p++;
+            int matched = 0, valid = 0;
+            if (*p == ']') {
+                matched = *path == ']';
+                valid = 1;
+                p++;
+            }
+            while (*p && *p != ']') {
+                unsigned char first = (unsigned char)*p++, last = first;
+                if (*p == '-' && p[1] && p[1] != ']') {
+                    p++;
+                    last = (unsigned char)*p++;
+                }
+                unsigned char value = (unsigned char)*path;
+                if (value >= first && value <= last)
+                    matched = 1;
+                valid = 1;
+            }
+            if (valid && *p == ']') {
+                if (!*path || *path == '/' || matched == negate)
+                    return 0;
+                pattern = p + 1;
+                path++;
+                continue;
+            }
+        }
+        if (*pattern != *path || !*path)
+            return 0;
+        pattern++;
+        path++;
+    }
+    return !*path;
+}
+#else
+static int path_pattern_match(const char *pattern, const char *path) {
+    return fnmatch(pattern, path, FNM_PATHNAME) == 0;
+}
+#endif
 static int path_is_excluded(const char *path) {
     const char *relative = path;
     if (source_root_name && !strncmp(path, source_root_name, source_root_length) &&
@@ -128,13 +235,19 @@ static int path_is_excluded(const char *path) {
     leaf = leaf ? leaf + 1 : relative;
     for (size_t i = 0; i < exclude_count; i++) {
         const char *pattern = exclude_patterns[i];
-        if (!fnmatch(pattern, relative, 0) ||
-            (!strchr(pattern, '/') && !fnmatch(pattern, leaf, 0)))
+        if (path_pattern_match(pattern, relative) ||
+            (!strchr(pattern, '/') && path_pattern_match(pattern, leaf)))
             return 1;
     }
     return 0;
 }
 static int same_stat(const struct stat *a, const struct stat *b) {
+#ifdef _WIN32
+    return a->st_dev == b->st_dev && a->st_ino == b->st_ino && a->st_size == b->st_size &&
+           a->st_mode == b->st_mode && a->st_atime == b->st_atime &&
+           a->st_mtime == b->st_mtime &&
+           a->st_ctime == b->st_ctime;
+#else
 #ifdef __APPLE__
 #define MT st_mtimespec
 #define CT st_ctimespec
@@ -146,6 +259,7 @@ static int same_stat(const struct stat *a, const struct stat *b) {
            a->st_mode == b->st_mode && a->MT.tv_sec == b->MT.tv_sec &&
            a->MT.tv_nsec == b->MT.tv_nsec && a->CT.tv_sec == b->CT.tv_sec &&
            a->CT.tv_nsec == b->CT.tv_nsec;
+#endif
 }
 static int hash_fd(int fd, uint64_t length, uint8_t hash[32]) {
     cat_sha256_ctx ctx;
@@ -165,53 +279,72 @@ static int encode_file(int fd, Entry *e, cat_spool *payload) {
     e->payload_offset = payload->size;
     cat_sha256_ctx ctx;
     cat_sha256_init(&ctx);
-    uint8_t bytes[CAT_BLOCK_MAX];
+    uint8_t bytes[CATS_BLOCK_MAX];
     uint64_t remaining = e->size;
+    int result = 0;
     while (remaining) {
         size_t n = remaining > sizeof(bytes) ? sizeof(bytes) : (size_t)remaining;
-        if (cat_read(fd, bytes, n))
-            return -1;
+        if (cat_read(fd, bytes, n)) {
+            result = -1;
+            goto done;
+        }
         cat_sha256_update(&ctx, bytes, n);
         uint8_t *tree = NULL;
-        size_t packed = cat_tree_estimate(bytes, n);
-        int compressed = packed < n;
-        if (compressed && cat_tree_encode(bytes, n, &tree, &packed))
-            return cat_fail("XF tree encode failed");
+        size_t packed = n;
+        int compressed = cat_tree_may_compress(bytes, n);
+        if (compressed) {
+            if (cat_tree_encode(bytes, n, &tree, &packed)) {
+                result = cat_fail("XF tree encode failed");
+                goto done;
+            }
+        }
         if (!compressed)
             packed = n;
-        uint8_t frame[9];
+        uint8_t frame[9] = {0};
+        size_t frame_size = 1 + 2 * frame_length_width;
         frame[0] = (uint8_t)compressed;
-        be(frame + 1, n, 4);
-        be(frame + 5, compressed ? packed : n, 4);
-        int rc = cat_spool_write(payload, frame, sizeof(frame));
+        be(frame + 1, n, frame_length_width);
+        be(frame + 1 + frame_length_width, compressed ? packed : n, frame_length_width);
+        int rc = cat_spool_write(payload, frame, frame_size);
         if (!rc)
             rc = cat_spool_write(payload, compressed ? tree : bytes, compressed ? packed : n);
         free(tree);
-        if (rc)
-            return -1;
+        if (rc) {
+            result = -1;
+            goto done;
+        }
         if (compressed)
             tree_blocks++;
         else
             raw_blocks++;
-        if (payload->size > max_archive)
-            return cat_fail("archive byte budget exceeded");
+        if (payload->size > max_archive) {
+            result = cat_fail("archive byte budget exceeded");
+            goto done;
+        }
         remaining -= n;
     }
     cat_test_hook("source-read");
-    if (cat_check_cancel())
-        return -1;
+    if (cat_check_cancel()) {
+        result = -1;
+        goto done;
+    }
     uint8_t extra;
     ssize_t got;
     do {
         got = read(fd, &extra, 1);
     } while (got < 0 && errno == EINTR && !cat_cancelled);
-    if (got < 0)
-        return cat_syserr("read source tail");
-    if (got)
-        return cat_fail("source length changed during ingestion");
+    if (got < 0) {
+        result = cat_syserr("read source tail");
+        goto done;
+    }
+    if (got) {
+        result = cat_fail("source length changed during ingestion");
+        goto done;
+    }
     cat_sha256_final(&ctx, e->hash);
     e->payload_size = payload->size - e->payload_offset;
-    return 0;
+done:
+    return result;
 }
 static int name_cmp(const void *a, const void *b) {
     return strcmp(*(char *const *)a, *(char *const *)b);
@@ -222,8 +355,10 @@ static int walk(int parent, const char *name, const char *relative, unsigned dep
         return -1;
     if (depth > MAX_DEPTH || !safe_path(relative))
         return cat_fail("path/depth limit or unsafe source name");
-    if (depth > 1 && path_is_excluded(relative))
+    if (depth > 1 && path_is_excluded(relative)) {
+        excluded_path_count++;
         return 0;
+    }
     if (count == MAX_ENTRIES)
         return cat_fail("entry limit exceeded");
     size_t record_bytes = RECORD + strlen(relative);
@@ -234,6 +369,8 @@ static int walk(int parent, const char *name, const char *relative, unsigned dep
         return cat_syserr("stat source");
     if (!S_ISREG(before.st_mode) && !S_ISDIR(before.st_mode))
         return cat_fail("symlinks and special files are rejected");
+    if (S_ISREG(before.st_mode) && file_count == MAX_FILES)
+        return cat_fail("regular-file limit exceeded (2000 files)");
     int flags = O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | O_NOCTTY;
     if (S_ISDIR(before.st_mode))
         flags |= O_DIRECTORY;
@@ -248,6 +385,8 @@ static int walk(int parent, const char *name, const char *relative, unsigned dep
     e->path = strdup(relative);
     e->mode = before.st_mode & 0777;
     e->type = S_ISDIR(before.st_mode) ? 1 : 2;
+    if (e->type == 2)
+        file_count++;
     manifest_size += record_bytes;
     if (!e->path) {
         close(fd);
@@ -278,6 +417,20 @@ static int walk(int parent, const char *name, const char *relative, unsigned dep
             while ((de = readdir(dir))) {
                 if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
                     continue;
+                size_t child_length = strlen(relative) + strlen(de->d_name) + 2;
+                char *child = malloc(child_length);
+                if (!child) {
+                    rc = cat_fail("out of memory");
+                    break;
+                }
+                snprintf(child, child_length, "%s/%s", relative, de->d_name);
+                if (path_is_excluded(child)) {
+                    excluded_path_count++;
+                    free(child);
+                    errno = 0;
+                    continue;
+                }
+                free(child);
                 if (nn == MAX_ENTRIES) {
                     rc = cat_fail("directory entry limit exceeded");
                     break;
@@ -322,45 +475,65 @@ static int walk(int parent, const char *name, const char *relative, unsigned dep
     close(fd);
     return rc;
 }
-static int inventory(const char *path, cat_spool *payload) {
-    char *source = strdup(path);
-    if (!source)
-        return cat_fail("out of memory");
-    size_t n = strlen(source);
-    while (n > 1 && source[n - 1] == '/')
-        source[--n] = 0;
-    char *slash = strrchr(source, '/');
-    const char *base = slash ? slash + 1 : source;
-    char *name = strdup(base);
-    int parent = -1, rc = 0;
-    if (!name || !safe_path(name) || strchr(name, '/'))
-        rc = cat_fail("input needs a safe non-dot basename");
-    if (!rc) {
-        if (slash) {
-            if (slash == source)
-                parent = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-            else {
-                *slash = 0;
-                parent = open(source, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-            }
-        } else
-            parent = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-        if (parent < 0)
-            rc = cat_syserr("open source parent");
+static int inventory(const char *const *paths, size_t path_count, cat_spool *payload) {
+    for (size_t input = 0; input < path_count; input++) {
+        char *source = strdup(paths[input]);
+        if (!source)
+            return cat_fail("out of memory");
+#ifdef _WIN32
+        for (char *p = source; *p; p++)
+            if (*p == '\\')
+                *p = '/';
+#endif
+        size_t n = strlen(source);
+        while (n > 1 && source[n - 1] == '/')
+            source[--n] = 0;
+        char *slash = strrchr(source, '/');
+        const char *base = slash ? slash + 1 : source;
+        char *name = strdup(base);
+        int parent = -1, rc = 0;
+        if (!name || !safe_path(name) || strchr(name, '/'))
+            rc = cat_fail("input needs a safe non-dot basename");
+        for (size_t i = 0; !rc && i < count; i++)
+            if (!strcmp(entries[i].path, name))
+                rc = cat_fail("input basenames collide in archive");
+        if (!rc) {
+            if (slash) {
+#ifdef _WIN32
+                if (slash == source + 2 && source[1] == ':') {
+                    slash[1] = 0;
+                    parent = open(source, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+                } else
+#endif
+                if (slash == source)
+                    parent = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+                else {
+                    *slash = 0;
+                    parent = open(source, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+                }
+            } else
+                parent = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+            if (parent < 0)
+                rc = cat_syserr("open source parent");
+        }
+        if (!rc) {
+            free(source_root_name);
+            source_root_name = strdup(name);
+            if (!source_root_name)
+                rc = cat_fail("out of memory");
+        }
+        if (!rc) {
+            source_root_length = strlen(source_root_name);
+            rc = walk(parent, name, name, 1, payload);
+        }
+        if (parent >= 0)
+            close(parent);
+        free(name);
+        free(source);
+        if (rc)
+            return rc;
     }
-    if (!rc)
-        source_root_name = strdup(name);
-    if (!rc && !source_root_name)
-        rc = cat_fail("out of memory");
-    if (!rc)
-        source_root_length = strlen(source_root_name);
-    if (!rc)
-        rc = walk(parent, name, name, 1, payload);
-    if (parent >= 0)
-        close(parent);
-    free(name);
-    free(source);
-    return rc;
+    return 0;
 }
 static int hashed_write(cat_spool *output, cat_sha256_ctx *hash, const void *data, size_t n) {
     if (cat_spool_write(output, data, n))
@@ -368,12 +541,12 @@ static int hashed_write(cat_spool *output, cat_sha256_ctx *hash, const void *dat
     cat_sha256_update(hash, data, n);
     return 0;
 }
-static int serialize(cat_spool *payload, cat_spool *archive) {
+static int serialize(cat_spool *payload, cat_spool *archive, int compact) {
     uint64_t framing = HEADER + (uint64_t)manifest_size + 32;
     if (framing > max_archive || payload->size > max_archive - framing)
         return cat_fail("archive byte budget exceeded");
     uint8_t header[HEADER] = {0};
-    memcpy(header, magic, 8);
+    memcpy(header, compact ? magic_v08 : magic, 8);
     be(header + 8, count, 4);
     be(header + 16, manifest_size, 8);
     be(header + 24, payload->size, 8);
@@ -418,18 +591,20 @@ static int decode_file(int fd, Entry *e, cat_spool *decoded) {
         e->data_offset = decoded->size;
     uint64_t remaining = e->payload_size, original = e->size;
     while (remaining) {
-        if (remaining < 9)
+        size_t frame_size = 1 + 2 * frame_length_width;
+        if (remaining < frame_size)
             return cat_fail("truncated block header");
         uint8_t frame[9];
-        if (cat_read(fd, frame, sizeof(frame)))
+        if (cat_read(fd, frame, frame_size))
             return -1;
-        remaining -= 9;
+        remaining -= frame_size;
         unsigned codec = frame[0];
-        uint64_t length = un(frame + 1, 4), packed = un(frame + 5, 4);
+        uint64_t length = un(frame + 1, frame_length_width);
+        uint64_t packed = un(frame + 1 + frame_length_width, frame_length_width);
         uint64_t want = original > archive_block_max ? archive_block_max : original;
         if (!length || length != want || packed > remaining || packed > archive_block_max)
             return cat_fail("invalid block bounds");
-        uint8_t buffer[CAT_BLOCK_MAX], *bytes = buffer, *allocated = NULL;
+        uint8_t buffer[CATS_BLOCK_MAX], *bytes = buffer, *allocated = NULL;
         if (cat_read(fd, buffer, (size_t)packed))
             return -1;
         if (codec == 0) {
@@ -437,6 +612,8 @@ static int decode_file(int fd, Entry *e, cat_spool *decoded) {
                 return cat_fail("invalid raw block size");
             raw_blocks++;
         } else if (codec == 1) {
+            if (!cat_transform_session_is_active() && cat_transform_session_begin(1))
+                return cat_fail("XF transform session init failed");
             if (packed >= length ||
                 cat_tree_decode(buffer, (size_t)packed, (size_t)length, &allocated))
                 return cat_fail("malformed binary aggregate tree");
@@ -458,7 +635,7 @@ static int decode_file(int fd, Entry *e, cat_spool *decoded) {
     cat_sha256_final(&hash, digest);
     return memcmp(digest, e->hash, 32) ? cat_fail("file SHA-256 mismatch") : 0;
 }
-static int parse(cat_spool *archive, cat_spool *decoded) {
+static int parse(cat_spool *archive, cat_spool *decoded, int compact_decode) {
     if (archive->size < HEADER + 32 || archive->size > max_archive)
         return cat_fail("invalid archive size");
     if (cat_seek(archive->fd, 0))
@@ -474,11 +651,24 @@ static int parse(cat_spool *archive, cat_spool *decoded) {
     if (cat_read(archive->fd, header, HEADER))
         return -1;
     unsigned version = header[4];
-    const uint8_t *known = version == 1 ? magic_v01 : version == 2 ? magic_v02 : version == 3 ? magic_v03 : version == 4 ? magic_v04 : version == 5 ? magic_v05 : version == 6 ? magic_v06 : NULL;
+    const uint8_t *known = version == 1   ? magic_v01
+                           : version == 2 ? magic_v02
+                           : version == 3 ? magic_v03
+                           : version == 4 ? magic_v04
+                           : version == 5 ? magic_v05
+                           : version == 6 ? magic_v06
+                           : version == 7 ? magic_v07
+                           : version == 8 ? magic_v08
+                                           : NULL;
     if (!known || memcmp(header, known, 8) || un(header + 12, 4))
         return cat_fail("bad magic/version or unsupported flags");
-    static const uint32_t limits[] = {0, CAT_BLOCK_V01_MAX, CAT_BLOCK_V02_MAX, 65536u, 32768u, 131072u, 8192u};
+    static const uint32_t limits[] = {0, CATS_BLOCK_V01_MAX, CATS_BLOCK_V02_MAX, 65536u,
+                                      32768u, 131072u, 8192u, 8192u, 8192u};
     archive_block_max = limits[version];
+    frame_length_width = version == 8 ? 2 : 4;
+    if (decoded && ((version == 8) != compact_decode))
+        return cat_fail(version == 8 ? "compact archive requires -c/--compress for decode"
+                                     : "-c/--compress decode requires a compact v0.8 archive");
     uint64_t nc = un(header + 8, 4), ml = un(header + 16, 8), pl = un(header + 24, 8);
     if (!nc || nc > MAX_ENTRIES || ml > MAX_MANIFEST || ml > archive->size - HEADER - 32 ||
         pl != archive->size - HEADER - 32 - ml)
@@ -494,7 +684,8 @@ static int parse(cat_spool *archive, cat_spool *decoded) {
         uint64_t size = un(r + 16, 8), packed = un(r + 24, 8), length = un(r + 8, 4);
         if (un(r, 4) != i || un(r + 12, 4) || !length || length >= MAX_PATH_BYTES ||
             length > remaining || (r[4] != 1 && r[4] != 2) || r[5] != (r[4] == 2 ? 1 : 0) ||
-            un(r + 6, 2) > 0777 || size > max_bytes - total || packed > payload_remaining)
+            un(r + 6, 2) > 0777 || size > max_bytes - total || packed > payload_remaining ||
+            (r[4] == 2 && file_count == MAX_FILES))
             return cat_fail("invalid manifest fields or input byte budget exceeded");
         Entry *e = &entries[count++];
         e->path = malloc((size_t)length + 1);
@@ -507,6 +698,8 @@ static int parse(cat_spool *archive, cat_spool *decoded) {
         if (memchr(e->path, 0, (size_t)length) || !safe_path(e->path))
             return cat_fail("unsafe archive path");
         e->type = r[4];
+        if (e->type == 2)
+            file_count++;
         e->mode = (unsigned)un(r + 6, 2);
         e->size = size;
         e->payload_size = packed;
@@ -514,10 +707,11 @@ static int parse(cat_spool *archive, cat_spool *decoded) {
         memcpy(e->hash, r + 32, 32);
         if (e->type == 1 && (size || packed || memcmp(e->hash, (uint8_t[32]){0}, 32)))
             return cat_fail("directory carries file data");
-        /* Even raw blocks have nine bytes of framing; reject impossible length
-         * claims before spending CPU on malformed small archives. */
+        /* Every block needs a frame and at least one payload byte; reject
+         * impossible length claims before decoding malformed small archives. */
         uint64_t blocks = size / archive_block_max + (size % archive_block_max != 0);
-        if (e->type == 2 && blocks > packed / 10)
+        uint64_t minimum_block_bytes = 1 + 2 * frame_length_width + 1;
+        if (e->type == 2 && blocks > packed / minimum_block_bytes)
             return cat_fail("impossible file/block size claim");
         for (size_t j = 0; j < i; j++)
             if (!strcmp(entries[j].path, e->path))
@@ -532,7 +726,7 @@ static int parse(cat_spool *archive, cat_spool *decoded) {
                     found = 1;
             if (!found)
                 return cat_fail("missing or non-directory parent");
-        } else if (i)
+        } else if (i && version < 7)
             return cat_fail("multiple archive roots");
         total += size;
         payload_remaining -= packed;
@@ -540,16 +734,21 @@ static int parse(cat_spool *archive, cat_spool *decoded) {
     }
     if (remaining || payload_remaining)
         return cat_fail("unreferenced manifest/payload bytes");
+    int decode_status = 0;
     for (size_t i = 0; i < count; i++)
         if (entries[i].type == 2) {
             if (cat_seek(archive->fd, entries[i].payload_offset) ||
-                decode_file(archive->fd, &entries[i], decoded))
-                return -1;
+                decode_file(archive->fd, &entries[i], decoded)) {
+                decode_status = -1;
+                break;
+            }
         }
-    return 0;
+    if (cat_transform_session_is_active() && cat_transform_session_end())
+        decode_status = -1;
+    return decode_status;
 }
 static int load_archive(const char *path, cat_spool **out, uint64_t *stored, int *gzipped,
-                        cat_spool *decoded) {
+                        cat_spool *decoded, int compact_decode) {
     struct stat before, opened, after;
     if (lstat(path, &before))
         return cat_syserr("stat archive");
@@ -594,7 +793,7 @@ static int load_archive(const char *path, cat_spool **out, uint64_t *stored, int
         raw = plain;
     }
     *out = raw;
-    return parse(raw, decoded);
+    return parse(raw, decoded, compact_decode);
 }
 /* Resolve archive parents only under an already-open extraction root. */
 static int parent_fd(int root, const char *path, char **leaf) {
@@ -629,6 +828,10 @@ static int exclusive_rename(const char *source, const char *destination, int dir
         return -1;
     }
 #endif
+#ifdef _WIN32
+    (void)directory;
+    return rename(source, destination);
+#else
 #ifdef __APPLE__
     (void)directory;
     return renamex_np(source, destination, RENAME_EXCL);
@@ -649,14 +852,28 @@ static int exclusive_rename(const char *source, const char *destination, int dir
     errno = ENOTSUP;
     return -1;
 #endif
+#endif
 }
 static int sync_parent(const char *path) {
     char *copy = strdup(path);
     if (!copy)
         return cat_fail("out of memory after publication");
+#ifdef _WIN32
     char *slash = strrchr(copy, '/');
+    char *backslash = strrchr(copy, '\\');
+    if (backslash && (!slash || backslash > slash))
+        slash = backslash;
+#else
+    char *slash = strrchr(copy, '/');
+#endif
     const char *parent = ".";
     if (slash) {
+#ifdef _WIN32
+        if (slash == copy + 2 && copy[1] == ':') {
+            slash[1] = 0;
+            parent = copy;
+        } else
+#endif
         if (slash == copy)
             parent = "/";
         else {
@@ -760,11 +977,11 @@ static int publish(const char *stage, const char *destination, int directory, in
     return sync_result;
 }
 static int save_archive(const char *destination, cat_spool *archive) {
-    size_t length = strlen(destination) + 16;
+    size_t length = strlen(destination) + CAT_TEMP_EXTRA;
     char *name = malloc(length);
     if (!name)
         return cat_fail("out of memory");
-    snprintf(name, length, "%s.tmp.XXXXXX", destination);
+    snprintf(name, length, "%s.tmp.%s", destination, CAT_TEMP_TEMPLATE);
     int fd = mkstemp(name);
     if (fd < 0) {
         free(name);
@@ -812,6 +1029,11 @@ static void cleanup_tree(int root, size_t made) {
 static int apply_mode(int fd, unsigned mode) {
     if (!restore_permissions)
         return 0;
+#ifdef _WIN32
+    (void)fd;
+    (void)mode;
+    return 0;
+#else
 #ifdef CAT_TESTING
     if (getenv("CAT_TEST_CHMOD_FAIL")) {
         errno = EPERM;
@@ -827,6 +1049,7 @@ static int apply_mode(int fd, unsigned mode) {
         return cat_fail("target filesystem cannot preserve permission bits (use --no-permissions "
                         "intentionally)");
     return 0;
+#endif
 }
 static int extract(const char *destination, cat_spool *decoded) {
     struct stat st;
@@ -836,13 +1059,13 @@ static int extract(const char *destination, cat_spool *decoded) {
         return cat_syserr("check extraction destination");
     if (cat_temp_claim(total))
         return -1;
-    size_t length = strlen(destination) + 16;
+    size_t length = strlen(destination) + CAT_TEMP_EXTRA;
     char *stage = malloc(length);
     if (!stage) {
         cat_temp_release(total);
         return cat_fail("out of memory");
     }
-    snprintf(stage, length, "%s.tmp.XXXXXX", destination);
+    snprintf(stage, length, "%s.tmp.%s", destination, CAT_TEMP_TEMPLATE);
     if (!mkdtemp(stage)) {
         free(stage);
         cat_temp_release(total);
@@ -962,26 +1185,35 @@ static void print_path(const char *path) {
     putchar('"');
 }
 static void usage(void) {
-    puts("catc " CAT_VERSION " (CAT format v0.6)\n"
-         "Usage: catc -eg INPUT OUTPUT.cat.gz\n"
-         "       catc -d INPUT.cat NEW_OUTPUT_DIR\n"
-         "       catc -i INPUT.cat\n"
-         "       catc -v INPUT.cat\n\n"
+    puts("cats " CAT_VERSION " (default CAT format v0.7; -c compact format v0.8)\n"
+         "Usage: cats -e INPUT... -o OUTPUT.cat\n"
+         "       cats -ec INPUT... --output OUTPUT.cat  (compact 2-byte block lengths)\n"
+         "       cats -ecg INPUT... --output OUTPUT.cat.gz\n"
+         "       cats -e INPUT OUTPUT.cat  (single-input compatibility form)\n"
+         "       cats -d INPUT.cat NEW_OUTPUT_DIR\n"
+         "       cats -dc INPUT.cat[.gz] NEW_OUTPUT_DIR  (decode compact v0.8)\n"
+         "       cats -i INPUT.cat\n"
+         "       cats -v INPUT.cat\n\n"
          "  -e, --encode, encode     Encode a file or directory\n"
          "  -d, --decode, decode     Extract (auto-detects gzip)\n"
          "  -i, --inspect, inspect   List and validate archive entries\n"
          "  -v, --verify, verify     Validate archive contents\n"
+         "  -c, --compress           Use compact 2-byte block lengths (v0.8); required to decode v0.8\n"
          "  -g, --gzip               Gzip the complete CAT archive (encode only)\n"
+         "  -o, --output FILE        Name the output archive (encode only)\n"
+         "  Extension-less output names get .cat, or .cat.gz with -g; known CAT suffixes follow -g.\n"
          "  -x, --exclude PATTERN    Exclude matching relative paths (repeatable)\n"
          "  -h, --help               Show this help\n"
          "      --version            Show tool and format version\n"
-         "      --max-bytes N        Original byte budget (default 64 GiB)\n"
+         "      --max-bytes N        Original bytes budget (default/max 64 GB)\n"
          "      --max-archive-bytes N Stored/inflated archive budget (default 64 GiB)\n"
          "      --max-temp-bytes N   Temporary disk budget (default 192 GiB)\n"
          "      --require-atomic     Refuse filesystems without atomic no-replace publication\n"
          "      --no-permissions     Restore content without original mode bits (decode only)\n"
-         "  Short flags may be grouped: -eg or -ge. -- ends options.\n"
-         "Limits: 4096 entries, depth 64, 2 MiB manifest; symlinks/special files rejected.\n"
+         "  Encode accepts multiple files/directories; duplicate basenames are rejected.\n"
+         "  Short flags may be grouped: -eg, -ec, -ecg, or -ge. Encoding applies -c before -g; decoding removes gzip before -c. -- ends options.\n"
+         "Limits: 2000 files, 64 GB total input, 4096 entries, depth 64, 2 MiB manifest.\n"
+         "Symlinks and special files are rejected.\n"
          "TMPDIR selects scratch storage. Budgets are decimal byte counts, not preallocations.");
 }
 static int action(const char *arg) {
@@ -995,6 +1227,7 @@ static int action(const char *arg) {
         return 4;
     return 0;
 }
+#ifndef CAT_FUZZING
 static int budget(const char *text, uint64_t *value) {
     if (!*text)
         return -1;
@@ -1009,10 +1242,62 @@ static int budget(const char *text, uint64_t *value) {
     *value = n;
     return 0;
 }
-#ifndef CAT_FUZZING
+static int has_suffix(const char *path, size_t path_n, const char *suffix) {
+    size_t suffix_n = strlen(suffix);
+    if (path_n < suffix_n)
+        return 0;
+    path += path_n - suffix_n;
+    for (size_t i = 0; i < suffix_n; i++) {
+        unsigned char a = (unsigned char)path[i], b = (unsigned char)suffix[i];
+        if (a >= 'A' && a <= 'Z')
+            a = (unsigned char)(a - 'A' + 'a');
+        if (b >= 'A' && b <= 'Z')
+            b = (unsigned char)(b - 'A' + 'a');
+        if (a != b)
+            return 0;
+    }
+    return 1;
+}
+/* Add a CAT suffix to extension-less outputs, and keep a recognized suffix in
+ * sync with the selected outer gzip stage. Other explicit extensions are kept. */
+static char *archive_output_name(const char *path, int gzip) {
+    if (!path || !*path)
+        return NULL;
+    size_t path_n = strlen(path), stem_n = path_n;
+    const char *suffix = gzip ? ".cat.gz" : ".cat";
+    if (has_suffix(path, path_n, ".cat.gz"))
+        stem_n -= 7;
+    else if (has_suffix(path, path_n, ".cat"))
+        stem_n -= 4;
+    else if (has_suffix(path, path_n, ".gz"))
+        stem_n -= 3;
+    else {
+        const char *base = path;
+        for (const char *p = path; *p; p++)
+            if (*p == '/' || *p == '\\')
+                base = p + 1;
+        const char *dot = strrchr(base, '.');
+        if (dot && dot != base) {
+            char *copy = malloc(path_n + 1);
+            if (copy)
+                memcpy(copy, path, path_n + 1);
+            return copy;
+        }
+    }
+    size_t suffix_n = strlen(suffix);
+    if (stem_n > (size_t)-1 - suffix_n - 1)
+        return NULL;
+    char *name = malloc(stem_n + suffix_n + 1);
+    if (!name)
+        return NULL;
+    memcpy(name, path, stem_n);
+    memcpy(name + stem_n, suffix, suffix_n + 1);
+    return name;
+}
 int main(int argc, char **argv) {
-    int operation = 0, gzip_option = 0, end_options = 0, npaths = 0;
-    const char *paths[2] = {NULL, NULL};
+    int operation = 0, gzip_option = 0, compress_option = 0, end_options = 0, npaths = 0;
+    const char *paths[argc > 0 ? argc : 1];
+    const char *output_path = NULL;
     for (int i = 1; i < argc; i++) {
         const char *arg = argv[i];
         if (!end_options && (!strcmp(arg, "--help") || !strcmp(arg, "-h"))) {
@@ -1020,15 +1305,35 @@ int main(int argc, char **argv) {
             return 0;
         }
         if (!end_options && !strcmp(arg, "--version")) {
-            printf("catc %s format=0.6 xf=%s zlib=%s\n", CAT_VERSION, xf_version(), zlibVersion());
+            printf("cats %s format=0.7 compact_format=0.8 xf=%s zlib=%s\n", CAT_VERSION, xf_version(), zlibVersion());
             return 0;
         }
         if (!end_options && !strcmp(arg, "--")) {
             end_options = 1;
             continue;
         }
+        if (!end_options && !strncmp(arg, "--output=", 9)) {
+            if (output_path || !arg[9]) {
+                usage();
+                return 2;
+            }
+            output_path = arg + 9;
+            continue;
+        }
+        if (!end_options && !strcmp(arg, "--output")) {
+            if (output_path || ++i == argc) {
+                usage();
+                return 2;
+            }
+            output_path = argv[i];
+            continue;
+        }
         if (!end_options && !strcmp(arg, "--no-permissions")) {
             restore_permissions = 0;
+            continue;
+        }
+        if (!end_options && !strcmp(arg, "--compress")) {
+            compress_option = 1;
             continue;
         }
         if (!end_options && !strcmp(arg, "--require-atomic")) {
@@ -1054,10 +1359,13 @@ int main(int argc, char **argv) {
             uint64_t *target = !strcmp(arg, "--max-bytes")           ? &max_bytes
                                : !strcmp(arg, "--max-archive-bytes") ? &max_archive
                                                                      : &cat_temp_limit;
-            if (++i == argc || budget(argv[i], target)) {
+            uint64_t value;
+            if (++i == argc || budget(argv[i], &value) ||
+                (target == &max_bytes && value > MAX_TOTAL_FILE_BYTES)) {
                 usage();
                 return 2;
             }
+            *target = value;
             continue;
         }
         if (!end_options && arg[0] == '-' && arg[1] && arg[1] != '-') {
@@ -1070,11 +1378,23 @@ int main(int argc, char **argv) {
                     gzip_option = 1;
                     continue;
                 }
+                if (arg[j] == 'c') {
+                    compress_option = 1;
+                    continue;
+                }
                 if (arg[j] == 'x') {
                     if (++i == argc || add_exclude_pattern(argv[i])) {
                         usage();
                         return 2;
                     }
+                    continue;
+                }
+                if (arg[j] == 'o') {
+                    if (output_path || ++i == argc) {
+                        usage();
+                        return 2;
+                    }
+                    output_path = argv[i];
                     continue;
                 }
                 int chosen = arg[j] == 'e'   ? 1
@@ -1099,17 +1419,35 @@ int main(int argc, char **argv) {
             operation = chosen;
             continue;
         }
-        if ((!end_options && arg[0] == '-' && arg[1]) || npaths == 2) {
+        if (!end_options && arg[0] == '-' && arg[1]) {
             usage();
             return 2;
         }
         paths[npaths++] = arg;
     }
     int encoding = operation == 1, decoding = operation == 2, inspect = operation == 3;
-    if (!operation || npaths != ((encoding || decoding) ? 2 : 1) || (gzip_option && !encoding) ||
+    /* Keep the former single-input encode form working. Multiple inputs always
+     * require -o/--output so the archive name cannot be mistaken for an input. */
+    if (encoding && !output_path && npaths == 2) {
+        output_path = paths[1];
+        npaths = 1;
+    }
+    if (!operation || (encoding ? (npaths < 1 || !output_path)
+                                : decoding ? (npaths != 2 || output_path)
+                                           : (npaths != 1 || output_path)) ||
+        (gzip_option && !encoding) || (compress_option && !encoding && !decoding) ||
         (!restore_permissions && !decoding) || (exclude_count && !encoding)) {
         usage();
         return 2;
+    }
+    char *normalized_output = NULL;
+    if (encoding) {
+        normalized_output = archive_output_name(output_path, gzip_option);
+        if (!normalized_output) {
+            fputs("cats: cannot allocate output archive name\n", stderr);
+            return 1;
+        }
+        output_path = normalized_output;
     }
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -1124,21 +1462,26 @@ int main(int argc, char **argv) {
         archive = cat_spool_new();
         if (!payload || !archive)
             rc = -1;
+        frame_length_width = compress_option ? 2 : 4;
         if (!rc)
-            rc = inventory(paths[0], payload);
+            rc = inventory(paths, (size_t)npaths, payload);
+        if (cat_transform_session_is_active() && cat_transform_session_end())
+            rc = -1;
         if (!rc)
-            rc = serialize(payload, archive);
+            rc = serialize(payload, archive, compress_option);
         cat_spool_close(payload);
         uint64_t saved_trees = tree_blocks, saved_raw = raw_blocks;
         if (!rc) {
             clear_entries();
-            rc = parse(archive, NULL);
+            rc = parse(archive, NULL, 0);
         }
         if (!rc) {
             tree_blocks = saved_trees;
             raw_blocks = saved_raw;
             cat_size = archive->size;
         }
+        /* The compact v0.8 block framing is selected while encoding, before
+         * this optional outer gzip wrapper. */
         if (!rc && gzip_option) {
             cat_spool *packed = cat_spool_new();
             if (!packed)
@@ -1153,7 +1496,7 @@ int main(int argc, char **argv) {
         }
         if (!rc) {
             stored_size = archive->size;
-            rc = save_archive(paths[1], archive);
+            rc = save_archive(output_path, archive);
         }
     } else if (!rc) {
         if (decoding) {
@@ -1161,8 +1504,11 @@ int main(int argc, char **argv) {
             if (!decoded)
                 rc = -1;
         }
+        /* load_archive removes optional gzip before parsing compact v0.8
+         * frames and reconstructing the file bytes. */
         if (!rc)
-            rc = load_archive(paths[0], &archive, &stored_size, &gzipped, decoded);
+            rc = load_archive(paths[0], &archive, &stored_size, &gzipped, decoded,
+                              decoding && compress_option);
         if (archive)
             cat_size = archive->size;
         if (!rc && decoding)
@@ -1177,7 +1523,7 @@ int main(int argc, char **argv) {
     }
     clock_gettime(CLOCK_MONOTONIC, &end);
     if (rc)
-        fprintf(stderr, "catc: %s\n", cat_error[0] ? cat_error : "operation failed");
+        fprintf(stderr, "cats: %s\n", cat_error[0] ? cat_error : "operation failed");
     else {
         double seconds =
             (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec) / 1e9;
@@ -1185,11 +1531,17 @@ int main(int argc, char **argv) {
                 "CAT: entries=%zu input_bytes=%" PRIu64 " archive_bytes=%" PRIu64
                 " tree_blocks=%" PRIu64 " raw_blocks=%" PRIu64 " seconds=%.6f",
                 count, total, stored_size, tree_blocks, raw_blocks, seconds);
+        if (encoding && exclude_count) {
+            fprintf(stderr, " excluded_paths=%zu", excluded_path_count);
+            if (!excluded_path_count)
+                fputs(" warning=no_exclusion_patterns_matched", stderr);
+        }
         if (total)
             fprintf(stderr, " ratio=%.6f", (double)stored_size / (double)total);
         else
             fputs(" ratio=n/a", stderr);
         fprintf(stderr, " gzip=%s cat_bytes=%" PRIu64, gzipped ? "on" : "off", cat_size);
+#ifndef _WIN32
         struct rusage usage;
         if (!getrusage(RUSAGE_SELF, &usage)) {
 #ifdef __APPLE__
@@ -1199,12 +1551,14 @@ int main(int argc, char **argv) {
 #endif
             fprintf(stderr, " peak_rss_bytes=%" PRIu64, rss);
         }
+#endif
         fputc('\n', stderr);
     }
     clear_entries();
     clear_exclude_patterns();
     cat_spools_close();
     cat_transform_close();
+    free(normalized_output);
     return cat_cancelled ? 128 + cat_cancelled : rc ? 1 : 0;
 }
 #else
@@ -1223,9 +1577,9 @@ int cat_fuzz_input(const uint8_t *data, size_t length) {
             cat_spool *plain = cat_spool_new();
             if (plain && !cat_seek(raw->fd, 0) &&
                 !cat_gzip_stream(raw->fd, length, plain, max_archive, 1))
-                parse(plain, NULL);
+                parse(plain, NULL, 0);
         } else
-            parse(raw, NULL);
+            parse(raw, NULL, 0);
     }
     clear_entries();
     cat_spools_close();

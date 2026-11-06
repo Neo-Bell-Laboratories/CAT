@@ -8,54 +8,57 @@
       "encode": {
         "entries": "1",
         "input_bytes": "25165824",
-        "archive_bytes": "25221257",
+        "archive_bytes": "25193609",
         "tree_blocks": "0",
         "raw_blocks": "6144",
-        "seconds": "13.299076",
-        "ratio": "1.002203",
+        "seconds": "0.282943",
+        "ratio": "1.001104",
         "gzip": "off",
-        "cat_bytes": "25221257",
-        "peak_rss_bytes": "9125888"
+        "cat_bytes": "25193609",
+        "peak_rss_bytes": "2392064"
       },
       "decode": {
         "entries": "1",
         "input_bytes": "25165824",
-        "archive_bytes": "25221257",
+        "archive_bytes": "25193609",
         "tree_blocks": "0",
         "raw_blocks": "6144",
-        "seconds": "0.223094",
-        "ratio": "1.002203",
+        "seconds": "0.202596",
+        "ratio": "1.001104",
         "gzip": "off",
-        "cat_bytes": "25221257",
-        "peak_rss_bytes": "2113536"
-      }
+        "cat_bytes": "25193609",
+        "peak_rss_bytes": "2097152"
+      },
+      "raw_blocks": "3072"
     },
     {
       "gzip": true,
       "encode": {
         "entries": "1",
         "input_bytes": "25165824",
-        "archive_bytes": "25228946",
+        "archive_bytes": "25201307",
         "tree_blocks": "0",
         "raw_blocks": "6144",
-        "seconds": "13.560436",
-        "ratio": "1.002508",
+        "seconds": "0.558729",
+        "ratio": "1.001410",
         "gzip": "on",
-        "cat_bytes": "25221257",
-        "peak_rss_bytes": "9306112"
+        "cat_bytes": "25193609",
+        "peak_rss_bytes": "2736128"
       },
       "decode": {
         "entries": "1",
         "input_bytes": "25165824",
-        "archive_bytes": "25228946",
+        "archive_bytes": "25201307",
         "tree_blocks": "0",
         "raw_blocks": "6144",
-        "seconds": "0.234858",
-        "ratio": "1.002508",
+        "seconds": "0.203652",
+        "ratio": "1.001410",
         "gzip": "on",
-        "cat_bytes": "25221257",
-        "peak_rss_bytes": "2162688"
-      }
+        "cat_bytes": "25193609",
+        "peak_rss_bytes": "2129920"
+      },
+      "raw_blocks": "3072"
     }
-  ]
+  ],
+  "code_sha256": "ce3a25519c897d13f7b621a40b125677b7b18b717e8417e1f9e7d632bce259c4"
 }
